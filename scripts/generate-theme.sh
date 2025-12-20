@@ -265,10 +265,147 @@ generate_dunst() {
     echo "  ✓ Dunst colors generated"
 }
 
+# Generate GTK theme settings
+generate_gtk() {
+    local gtk_theme=""
+    local icon_theme="Papirus-Dark"
+
+    # Map SumiNami theme to GTK theme
+    case "$CURRENT_THEME" in
+        kanagawa)
+            gtk_theme="Kanagawa-BL"
+            ;;
+        kanagawa-dragon)
+            gtk_theme="Kanagawa-B"
+            ;;
+        kanagawa-lotus)
+            gtk_theme="Kanagawa-BL"
+            icon_theme="Papirus-Light"
+            ;;
+        kanagawa-blossom)
+            gtk_theme="Kanagawa-B"
+            ;;
+        catppuccin-mocha)
+            gtk_theme="Catppuccin-Mocha-Standard-Blue-Dark"
+            ;;
+        catppuccin-macchiato)
+            gtk_theme="Catppuccin-Macchiato-Standard-Blue-Dark"
+            ;;
+        catppuccin-frappe)
+            gtk_theme="Catppuccin-Frappe-Standard-Blue-Dark"
+            ;;
+        catppuccin-latte)
+            gtk_theme="Catppuccin-Latte-Standard-Blue-Light"
+            icon_theme="Papirus-Light"
+            ;;
+        gruvbox-dark)
+            gtk_theme="Gruvbox-Dark-B"
+            ;;
+        *)
+            gtk_theme="Kanagawa-BL"
+            ;;
+    esac
+
+    # Set GTK theme via gsettings (for GNOME/GTK apps)
+    if command -v gsettings &> /dev/null; then
+        gsettings set org.gnome.desktop.interface gtk-theme "$gtk_theme" 2>/dev/null || true
+        gsettings set org.gnome.desktop.interface icon-theme "$icon_theme" 2>/dev/null || true
+
+        # Set color scheme for GTK4
+        if [ "$THEME_TYPE" = "light" ]; then
+            gsettings set org.gnome.desktop.interface color-scheme "prefer-light" 2>/dev/null || true
+        else
+            gsettings set org.gnome.desktop.interface color-scheme "prefer-dark" 2>/dev/null || true
+        fi
+    fi
+
+    # Also write to GTK settings files for non-GNOME environments
+    mkdir -p "$HOME/.config/gtk-3.0"
+    mkdir -p "$HOME/.config/gtk-4.0"
+
+    cat > "$HOME/.config/gtk-3.0/settings.ini" << EOF
+[Settings]
+gtk-theme-name=$gtk_theme
+gtk-icon-theme-name=$icon_theme
+gtk-font-name=JetBrainsMono Nerd Font 10
+gtk-cursor-theme-name=Bibata-Modern-Classic
+gtk-cursor-theme-size=24
+gtk-application-prefer-dark-theme=$( [ "$THEME_TYPE" = "dark" ] && echo "true" || echo "false" )
+EOF
+
+    cat > "$HOME/.config/gtk-4.0/settings.ini" << EOF
+[Settings]
+gtk-theme-name=$gtk_theme
+gtk-icon-theme-name=$icon_theme
+gtk-font-name=JetBrainsMono Nerd Font 10
+gtk-cursor-theme-name=Bibata-Modern-Classic
+gtk-cursor-theme-size=24
+gtk-application-prefer-dark-theme=$( [ "$THEME_TYPE" = "dark" ] && echo "true" || echo "false" )
+EOF
+
+    echo "  ✓ GTK theme set to $gtk_theme"
+}
+
+# Generate Kvantum/Qt theme settings
+generate_qt() {
+    local kvantum_theme=""
+
+    # Map SumiNami theme to Kvantum theme
+    case "$CURRENT_THEME" in
+        kanagawa|kanagawa-dragon|kanagawa-lotus|kanagawa-blossom)
+            # Kvantum doesn't have Kanagawa, use a dark theme
+            kvantum_theme="KvGnomeDark"
+            ;;
+        catppuccin-mocha)
+            kvantum_theme="Catppuccin-Mocha-Blue"
+            ;;
+        catppuccin-macchiato)
+            kvantum_theme="Catppuccin-Macchiato-Blue"
+            ;;
+        catppuccin-frappe)
+            kvantum_theme="Catppuccin-Frappe-Blue"
+            ;;
+        catppuccin-latte)
+            kvantum_theme="Catppuccin-Latte-Blue"
+            ;;
+        gruvbox-dark)
+            kvantum_theme="gruvbox-kvantum"
+            ;;
+        *)
+            kvantum_theme="KvGnomeDark"
+            ;;
+    esac
+
+    # Set Kvantum theme
+    if command -v kvantummanager &> /dev/null; then
+        kvantummanager --set "$kvantum_theme" 2>/dev/null || true
+    fi
+
+    # Configure qt5ct/qt6ct to use kvantum
+    mkdir -p "$HOME/.config/qt5ct"
+    mkdir -p "$HOME/.config/qt6ct"
+
+    cat > "$HOME/.config/qt5ct/qt5ct.conf" << EOF
+[Appearance]
+style=kvantum
+icon_theme=$( [ "$THEME_TYPE" = "light" ] && echo "Papirus-Light" || echo "Papirus-Dark" )
+EOF
+
+    cat > "$HOME/.config/qt6ct/qt6ct.conf" << EOF
+[Appearance]
+style=kvantum
+icon_theme=$( [ "$THEME_TYPE" = "light" ] && echo "Papirus-Light" || echo "Papirus-Dark" )
+EOF
+
+    echo "  ✓ Qt/Kvantum theme set to $kvantum_theme"
+}
+
 # Run all generators
 generate_wofi
 generate_waybar_colors
 generate_waybar_script_colors
 generate_dunst
+generate_gtk
+generate_qt
 
 echo "Theme generation complete!"
