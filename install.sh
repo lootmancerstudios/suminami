@@ -117,11 +117,23 @@ PACMAN_DEPS=(
     imagemagick
     btop
     python-pipx
+    kvantum
+    qt5ct
+    qt6ct
+    papirus-icon-theme
 )
 
 # AUR dependencies
 AUR_DEPS=(
     swaylock-effects
+    kanagawa-gtk-theme-git
+    catppuccin-gtk-theme-mocha
+    catppuccin-gtk-theme-macchiato
+    catppuccin-gtk-theme-frappe
+    catppuccin-gtk-theme-latte
+    gruvbox-gtk-theme-git
+    kvantum-theme-catppuccin-git
+    bibata-cursor-theme-bin
 )
 
 # Install packages
