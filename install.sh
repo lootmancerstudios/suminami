@@ -439,6 +439,61 @@ install_tui_enhancements() {
     echo ""
 }
 
+# Setup shell integration (zoxide smart cd)
+setup_shell_integration() {
+    local suminami_dir="$HOME/.config/suminami"
+    local shell_name
+    local rc_file
+    local shell_config
+
+    # Detect user's shell
+    shell_name=$(basename "$SHELL")
+
+    case "$shell_name" in
+        bash)
+            rc_file="$HOME/.bashrc"
+            shell_config="$suminami_dir/config/shell/zoxide.bash"
+            ;;
+        zsh)
+            rc_file="$HOME/.zshrc"
+            shell_config="$suminami_dir/config/shell/zoxide.zsh"
+            ;;
+        *)
+            print_warning "Shell '$shell_name' not supported for auto-setup"
+            print_status "Manually source the zoxide config for your shell"
+            return 0
+            ;;
+    esac
+
+    # Check if already sourced
+    local source_line="source \"$shell_config\""
+    if grep -qF "$shell_config" "$rc_file" 2>/dev/null; then
+        print_status "Shell integration already configured"
+        return 0
+    fi
+
+    echo ""
+    echo -e "${BLUE}Shell Integration${NC}"
+    echo "  Detected shell: $shell_name"
+    echo "  This adds smart 'cd' with zoxide (jump to frecent directories)"
+    echo ""
+    read -p "Add shell integration to $rc_file? [Y/n] " -n 1 -r
+    echo ""
+
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        print_status "Skipping shell integration"
+        return 0
+    fi
+
+    # Add source line to rc file
+    echo "" >> "$rc_file"
+    echo "# SumiNami shell integration" >> "$rc_file"
+    echo "$source_line" >> "$rc_file"
+
+    print_success "Shell integration added to $rc_file"
+    echo "  Restart your terminal or run: source $rc_file"
+}
+
 # Main
 main() {
     echo ""
@@ -472,6 +527,9 @@ main() {
 
     # Optional: Install TUI enhancements
     install_tui_enhancements
+
+    # Setup shell integration (zoxide)
+    setup_shell_integration
 
     echo ""
     print_success "Suminami installation complete!"
