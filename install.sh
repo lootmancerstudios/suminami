@@ -115,6 +115,8 @@ PACMAN_DEPS=(
     qt6-declarative
     qt6-svg
     imagemagick
+    btop
+    python-pipx
 )
 
 # AUR dependencies
@@ -189,7 +191,7 @@ setup_suminami() {
 # Create symlinks
 create_symlinks() {
     local suminami_dir="$HOME/.config/suminami"
-    local configs=(waybar wofi dunst)
+    local configs=(waybar wofi dunst btop)
 
     print_status "Creating config symlinks..."
 
@@ -293,6 +295,87 @@ install_limine_theme() {
     fi
 }
 
+# Install fetch tool (fastfetch or neofetch config)
+install_fetch_tool() {
+    local suminami_dir="$HOME/.config/suminami"
+
+    # Check if neofetch is installed
+    if command -v neofetch &> /dev/null; then
+        print_status "Neofetch detected, linking SumiNami neofetch config..."
+        if [ -d "$suminami_dir/config/neofetch" ]; then
+            rm -rf "$HOME/.config/neofetch" 2>/dev/null || true
+            ln -sfn "$suminami_dir/config/neofetch" "$HOME/.config/neofetch"
+            print_success "neofetch config linked"
+        fi
+        return 0
+    fi
+
+    # No neofetch, install fastfetch
+    print_status "Installing fastfetch..."
+    sudo pacman -S --needed --noconfirm fastfetch
+
+    # Create symlink for fastfetch config
+    if [ -d "$suminami_dir/config/fastfetch" ]; then
+        rm -rf "$HOME/.config/fastfetch" 2>/dev/null || true
+        ln -sfn "$suminami_dir/config/fastfetch" "$HOME/.config/fastfetch"
+        print_success "fastfetch config linked"
+    fi
+}
+
+# Install optional TUI enhancements
+install_tui_enhancements() {
+    local suminami_dir="$HOME/.config/suminami"
+
+    echo ""
+    echo -e "${BLUE}Optional TUI Enhancements${NC}"
+    echo "  - cava: Audio visualizer"
+    echo "  - terminal-flow: ASCII art animations"
+    echo "  - terminal-cosmos: Animated terminal scenes"
+    echo ""
+    read -p "Install TUI enhancements? [y/N] " -n 1 -r
+    echo ""
+
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_status "Skipping TUI enhancements"
+        return 0
+    fi
+
+    # Install cava from official repos
+    print_status "Installing cava..."
+    sudo pacman -S --needed --noconfirm cava
+
+    # Create cava symlink
+    if [ -d "$suminami_dir/config/cava" ]; then
+        rm -rf "$HOME/.config/cava" 2>/dev/null || true
+        ln -sfn "$suminami_dir/config/cava" "$HOME/.config/cava"
+        print_success "cava config linked"
+    fi
+
+    # Ensure pipx path is set
+    export PATH="$HOME/.local/bin:$PATH"
+    pipx ensurepath 2>/dev/null || true
+
+    # Install terminal-flow
+    print_status "Installing terminal-flow..."
+    pipx install git+https://github.com/kestalkayden/terminal-flow.git 2>/dev/null || \
+        pipx upgrade terminal-flow 2>/dev/null || \
+        print_warning "terminal-flow installation failed"
+
+    # Install terminal-cosmos
+    print_status "Installing terminal-cosmos..."
+    pipx install git+https://github.com/kestalkayden/terminal-cosmos.git 2>/dev/null || \
+        pipx upgrade terminal-cosmos 2>/dev/null || \
+        print_warning "terminal-cosmos installation failed"
+
+    print_success "TUI enhancements installed"
+    echo ""
+    echo "  Usage:"
+    echo "    cava              - Audio visualizer"
+    echo "    terminal-flow     - ASCII animations"
+    echo "    terminal-cosmos   - Terminal scenes"
+    echo ""
+}
+
 # Main
 main() {
     echo ""
@@ -314,11 +397,17 @@ main() {
     # Set initial wallpaper
     set_initial_wallpaper
 
+    # Install fetch tool (neofetch config or fastfetch)
+    install_fetch_tool
+
     # Optional: Install SDDM theme
     install_sddm_theme
 
     # Optional: Install Limine theme (if detected)
     install_limine_theme
+
+    # Optional: Install TUI enhancements
+    install_tui_enhancements
 
     echo ""
     print_success "Suminami installation complete!"
