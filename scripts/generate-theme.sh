@@ -273,36 +273,36 @@ generate_gtk() {
     # Map SumiNami theme to GTK theme
     case "$CURRENT_THEME" in
         kanagawa)
-            gtk_theme="Kanagawa-BL"
+            gtk_theme="Kanagawa-Dark"
             ;;
         kanagawa-dragon)
-            gtk_theme="Kanagawa-B"
+            gtk_theme="Kanagawa-Purple-Dark"
             ;;
         kanagawa-lotus)
-            gtk_theme="Kanagawa-BL"
+            gtk_theme="Kanagawa-Light"
             icon_theme="Papirus-Light"
             ;;
         kanagawa-blossom)
-            gtk_theme="Kanagawa-B"
+            gtk_theme="Kanagawa-Pink-Dark"
             ;;
         catppuccin-mocha)
-            gtk_theme="Catppuccin-Mocha-Standard-Blue-Dark"
+            gtk_theme="catppuccin-mocha-blue-standard+default"
             ;;
         catppuccin-macchiato)
-            gtk_theme="Catppuccin-Macchiato-Standard-Blue-Dark"
+            gtk_theme="catppuccin-macchiato-blue-standard+default"
             ;;
         catppuccin-frappe)
-            gtk_theme="Catppuccin-Frappe-Standard-Blue-Dark"
+            gtk_theme="catppuccin-frappe-blue-standard+default"
             ;;
         catppuccin-latte)
-            gtk_theme="Catppuccin-Latte-Standard-Blue-Light"
+            gtk_theme="catppuccin-latte-blue-standard+default"
             icon_theme="Papirus-Light"
             ;;
         gruvbox-dark)
-            gtk_theme="Gruvbox-Dark-B"
+            gtk_theme="Gruvbox-Dark"
             ;;
         *)
-            gtk_theme="Kanagawa-BL"
+            gtk_theme="Kanagawa-Dark"
             ;;
     esac
 
