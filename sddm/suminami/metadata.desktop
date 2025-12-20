@@ -1,0 +1,8 @@
+[SddmGreeterTheme]
+Name=SumiNami
+Description=Minimal dark theme with Kanagawa colors
+Author=SumiNami
+Version=1.0
+Website=https://github.com/lootmancerstudios/suminami
+License=MIT
+Type=sddm-theme
