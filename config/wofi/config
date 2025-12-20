@@ -2,13 +2,13 @@
 ## Auto-generated for 1440px (small tier)
 
 # Appearance
-width=400
-height=320
+width=420
+lines=10
 prompt=Search...
 image_size=24
 columns=1
 allow_images=true
-hide_scroll=false
+hide_scroll=true
 term=kitty
 
 # Behavior
