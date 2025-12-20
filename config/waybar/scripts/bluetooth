@@ -1,0 +1,190 @@
+#!/bin/bash
+# Bluetooth status widget with connected devices and battery info
+# Uses D-Bus (busctl) as primary, bluetoothctl as fallback
+
+# Source theme colors
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/colors.sh" 2>/dev/null || {
+    COLOR_ACCENT="#D27E99"
+    COLOR_FG="#DCD7BA"
+    COLOR_MUTED="#727169"
+    COLOR_SYSTEM="#98BB6C"
+    COLOR_AUDIO="#7FB4CA"
+    COLOR_WARNING="#E6C384"
+    COLOR_CRITICAL="#E46876"
+}
+
+# Theme colors
+accent="$COLOR_ACCENT"
+blue="$COLOR_AUDIO"
+gray="$COLOR_MUTED"
+white="$COLOR_FG"
+green="$COLOR_SYSTEM"
+yellow="$COLOR_WARNING"
+red="$COLOR_CRITICAL"
+
+# ─────────────────────────────────────────────────────────────────────
+# D-Bus (busctl) methods - primary
+# ─────────────────────────────────────────────────────────────────────
+
+get_adapter_dbus() {
+    # Find first bluetooth adapter
+    busctl tree org.bluez 2>/dev/null | grep -oP '/org/bluez/hci\d+' | head -1
+}
+
+get_powered_dbus() {
+    local adapter="$1"
+    local powered=$(busctl get-property org.bluez "$adapter" org.bluez.Adapter1 Powered 2>/dev/null | awk '{print $2}')
+    [ "$powered" = "true" ] && echo "yes" || echo "no"
+}
+
+get_connected_devices_dbus() {
+    local adapter="$1"
+    # List all device paths under the adapter
+    busctl tree org.bluez 2>/dev/null | grep -oiP "${adapter}/dev_[A-Fa-f0-9_]+" | while read -r dev_path; do
+        # Check if connected
+        local connected=$(busctl get-property org.bluez "$dev_path" org.bluez.Device1 Connected 2>/dev/null | awk '{print $2}')
+        if [ "$connected" = "true" ]; then
+            local name=$(busctl get-property org.bluez "$dev_path" org.bluez.Device1 Name 2>/dev/null | sed 's/^s "\(.*\)"$/\1/')
+            local mac=$(echo "$dev_path" | grep -oiP 'dev_\K[A-Fa-f0-9_]+' | tr '_' ':' | tr '[:lower:]' '[:upper:]')
+            echo "$mac $name"
+        fi
+    done
+}
+
+# ─────────────────────────────────────────────────────────────────────
+# bluetoothctl methods - fallback
+# ─────────────────────────────────────────────────────────────────────
+
+get_powered_ctl() {
+    bluetoothctl show 2>/dev/null | grep "Powered:" | awk '{print $2}'
+}
+
+get_connected_devices_ctl() {
+    bluetoothctl devices Connected 2>/dev/null
+}
+
+# ─────────────────────────────────────────────────────────────────────
+# Main logic
+# ─────────────────────────────────────────────────────────────────────
+
+# Determine which method to use
+use_dbus=false
+use_ctl=false
+adapter=""
+
+# Try D-Bus first (busctl)
+if command -v busctl &>/dev/null; then
+    adapter=$(get_adapter_dbus)
+    if [ -n "$adapter" ]; then
+        use_dbus=true
+    fi
+fi
+
+# Fall back to bluetoothctl
+if [ "$use_dbus" = false ] && command -v bluetoothctl &>/dev/null; then
+    if bluetoothctl show &>/dev/null; then
+        use_ctl=true
+    fi
+fi
+
+# No bluetooth available
+if [ "$use_dbus" = false ] && [ "$use_ctl" = false ]; then
+    echo '{"text": "", "tooltip": "", "class": "none"}'
+    exit 0
+fi
+
+# Get power state
+if [ "$use_dbus" = true ]; then
+    powered=$(get_powered_dbus "$adapter")
+else
+    powered=$(get_powered_ctl)
+fi
+
+if [ "$powered" != "yes" ]; then
+    tooltip="<span color='$accent'><b>Bluetooth</b></span>"
+    tooltip="$tooltip\n<span color='$gray'>Powered off</span>"
+    tooltip="$tooltip\n"
+    tooltip="$tooltip\n<span color='$gray'>Click to manage</span>"
+    echo "{\"text\": \"󰂲\", \"tooltip\": \"$tooltip\", \"class\": \"disabled\"}"
+    exit 0
+fi
+
+# Get connected devices
+if [ "$use_dbus" = true ]; then
+    connected_devices=$(get_connected_devices_dbus "$adapter")
+else
+    connected_devices=$(get_connected_devices_ctl)
+fi
+
+if [ -z "$connected_devices" ]; then
+    # Bluetooth on but no devices connected
+    tooltip="<span color='$accent'><b>Bluetooth</b></span>"
+    tooltip="$tooltip\n<span color='$gray'>No devices connected</span>"
+    tooltip="$tooltip\n"
+    tooltip="$tooltip\n<span color='$gray'>Click to manage</span>"
+    echo "{\"text\": \"󰂯\", \"tooltip\": \"$tooltip\", \"class\": \"on\"}"
+    exit 0
+fi
+
+# Count connected devices
+device_count=$(echo "$connected_devices" | grep -c .)
+
+# Build tooltip with device info
+tooltip="<span color='$accent'><b>Bluetooth</b></span>"
+tooltip="$tooltip\n<span color='$gray'>Connected:</span> <span color='$white'>$device_count device(s)</span>"
+tooltip="$tooltip\n"
+
+# List each connected device with battery if available
+while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    mac=$(echo "$line" | awk '{print $1}')
+    name=$(echo "$line" | cut -d' ' -f2-)
+
+    # Try to get battery level
+    battery=""
+    if command -v upower &>/dev/null; then
+        # Look for device in upower
+        upower_path=$(upower -e 2>/dev/null | grep -i "${mac//:/_}" | head -1)
+        if [ -n "$upower_path" ]; then
+            battery=$(upower -i "$upower_path" 2>/dev/null | grep "percentage:" | awk '{print $2}' | tr -d '%')
+        fi
+    fi
+
+    # Device icon based on name/type
+    icon="󰂱"
+    name_lower=$(echo "$name" | tr '[:upper:]' '[:lower:]')
+    case "$name_lower" in
+        *headphone*|*airpod*|*buds*|*earphone*) icon="󰋋" ;;
+        *speaker*|*soundbar*) icon="󰓃" ;;
+        *keyboard*) icon="󰌌" ;;
+        *mouse*|*trackpad*) icon="󰍽" ;;
+        *controller*|*gamepad*|*joystick*) icon="󰖺" ;;
+        *phone*|*iphone*|*android*) icon="󰏲" ;;
+        *watch*) icon="󰖉" ;;
+    esac
+
+    if [ -n "$battery" ] && [ "$battery" -gt 0 ] 2>/dev/null; then
+        # Color based on battery level
+        bat_color="$green"
+        [ "$battery" -lt 50 ] && bat_color="$yellow"
+        [ "$battery" -lt 20 ] && bat_color="$red"
+        tooltip="$tooltip\n<span color='$blue'>$icon</span> <span color='$white'>$name</span> <span color='$bat_color'>${battery}%</span>"
+    else
+        tooltip="$tooltip\n<span color='$blue'>$icon</span> <span color='$white'>$name</span>"
+    fi
+done <<< "$connected_devices"
+
+tooltip="$tooltip\n"
+tooltip="$tooltip\n<span color='$gray'>Click to manage</span>"
+
+# Icon based on connection status
+if [ "$device_count" -gt 0 ]; then
+    icon="󰂱"
+    class="connected"
+else
+    icon="󰂯"
+    class="on"
+fi
+
+echo "{\"text\": \"$icon\", \"tooltip\": \"$tooltip\", \"class\": \"$class\"}"

@@ -1,0 +1,175 @@
+{
+    "layer": "top",
+    "position": "top",
+    "height": 38,
+    "spacing": 0,
+
+    "modules-left": [
+        "custom/launcher",
+        "hyprland/workspaces",
+        "custom/media",
+        // "wlr/taskbar",  // Uncomment to show running apps
+        "hyprland/window"
+    ],
+    "modules-center": [],
+    "modules-right": [
+        "tray",
+        "custom/cpu",
+        "custom/memory",
+        "custom/temp",
+        "custom/backlight",
+        "custom/battery",
+        "custom/power-profile",
+        "custom/weather",
+        "custom/network",
+        "custom/traffic",
+        "custom/bluetooth",
+        "custom/audio",
+        "clock"
+    ],
+
+    "hyprland/workspaces": {
+        "format": "{icon}",
+        "format-icons": {
+            "1": "1", "2": "2", "3": "3", "4": "4", "5": "5",
+            "6": "6", "7": "7", "8": "8", "9": "9", "10": "10",
+            "active": "■"
+        },
+        "on-click": "activate",
+        "sort-by-number": true,
+        "persistent-workspaces": {
+            "*": 5
+        }
+    },
+
+    "hyprland/window": {
+        "format": "{title}",
+        "max-length": 50,
+        "separate-outputs": true,
+        "tooltip-format": "{title}\n\nApplication: {class}"
+    },
+
+    "clock": {
+        "format": "{:%a %b %d, %Y  %I:%M %p}",
+        "format-alt": "{:%a %b %d, %Y  %H:%M}",
+        "tooltip-format": "<tt><big>{calendar}</big></tt>",
+        "calendar": {
+            "mode": "month",
+            "weeks-pos": "left",
+            "format": {
+                "months": "<span color='#DCD7BA'><b>{}</b></span>",
+                "weeks": "<span color='#727169'>{}</span>",
+                "weekdays": "<span color='#D27E99'>{}</span>",
+                "days": "<span color='#727169'>{}</span>",
+                "today": "<span color='#D27E99'><b>{}</b></span>"
+            }
+        }
+    },
+
+    "custom/network": {
+        "exec": "~/.config/waybar/scripts/network",
+        "return-type": "json",
+        "interval": 2,
+        "on-click": "~/.config/waybar/scripts/wifi-picker"
+    },
+
+    "custom/traffic": {
+        "exec": "~/.config/waybar/scripts/traffic",
+        "return-type": "json",
+        "interval": 1
+    },
+
+    "tray": {
+        "icon-size": 14,
+        "spacing": 8
+    },
+
+    "custom/cpu": {
+        "exec": "~/.config/waybar/scripts/cpu",
+        "return-type": "json",
+        "interval": 3,
+        "on-click": "kitty -e sh -c 'command -v btop >/dev/null && btop || htop'"
+    },
+
+    "custom/memory": {
+        "exec": "~/.config/waybar/scripts/memory",
+        "return-type": "json",
+        "interval": 5
+    },
+
+    "custom/temp": {
+        "exec": "~/.config/waybar/scripts/temp",
+        "return-type": "json",
+        "interval": 5
+    },
+
+    "custom/weather": {
+        "exec": "~/.config/waybar/scripts/weather",
+        "return-type": "json",
+        "interval": 60
+    },
+
+    "custom/launcher": {
+        "format": "󰀻",
+        "tooltip": false,
+        "on-click": "~/.config/waybar/scripts/launcher"
+    },
+
+    "custom/battery": {
+        "exec": "~/.config/waybar/scripts/battery",
+        "return-type": "json",
+        "interval": 10
+    },
+
+    "custom/backlight": {
+        "exec": "~/.config/waybar/scripts/backlight",
+        "return-type": "json",
+        "interval": 1,
+        "on-scroll-up": "brightnessctl set 2%+",
+        "on-scroll-down": "brightnessctl set 2%-",
+        "on-scroll-left": "brightnessctl -d '*kbd_backlight*' set 5%- 2>/dev/null || true",
+        "on-scroll-right": "brightnessctl -d '*kbd_backlight*' set 5%+ 2>/dev/null || true"
+    },
+
+    "custom/audio": {
+        "exec": "~/.config/waybar/scripts/audio",
+        "return-type": "json",
+        "interval": 1,
+        "on-click": "pactl set-sink-mute @DEFAULT_SINK@ toggle",
+        "on-click-right": "pavucontrol || pwvucontrol || (command -v pulsemixer && kitty -e pulsemixer) || true",
+        "on-scroll-up": "~/.config/waybar/scripts/volume-up",
+        "on-scroll-down": "pactl set-sink-volume @DEFAULT_SINK@ -1%"
+    },
+
+    "custom/media": {
+        "exec": "~/.config/waybar/scripts/media",
+        "return-type": "json",
+        "interval": 2,
+        "on-click": "playerctl play-pause",
+        "on-scroll-up": "playerctl next",
+        "on-scroll-down": "playerctl previous"
+    },
+
+    "custom/power-profile": {
+        "exec": "~/.config/waybar/scripts/power-profile",
+        "return-type": "json",
+        "interval": 5,
+        "on-click": "~/.config/waybar/scripts/power-profile cycle"
+    },
+
+    "wlr/taskbar": {
+        "format": "{icon}",
+        "icon-size": 14,
+        "tooltip-format": "{title}",
+        "on-click": "activate",
+        "on-click-middle": "close",
+        "on-click-right": "minimize"
+    },
+
+    "custom/bluetooth": {
+        "exec": "~/.config/waybar/scripts/bluetooth",
+        "return-type": "json",
+        "interval": 5,
+        "on-click": "~/.config/waybar/scripts/bluetooth-picker"
+    }
+}

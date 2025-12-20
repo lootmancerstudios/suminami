@@ -1,0 +1,124 @@
+#!/bin/bash
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║              SumiNami Bar - Screenshot Generator                  ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+# Generates screenshots of all themes and combines them into one image
+
+set -e
+
+WAYBAR_DIR="$HOME/.config/waybar"
+SCREENSHOT_DIR="$WAYBAR_DIR/screenshots"
+OUTPUT_FILE="$WAYBAR_DIR/screenshots/all-themes.png"
+
+# All available themes
+THEMES=(
+    "kanagawa"
+    "kanagawa-dragon"
+    "kanagawa-lotus"
+    "kanagawa-blossom"
+    "catppuccin-mocha"
+    "catppuccin-macchiato"
+    "catppuccin-frappe"
+    "catppuccin-latte"
+    "gruvbox-dark"
+)
+
+# Get screen width and bar height
+get_dimensions() {
+    local width=$(hyprctl monitors -j | grep -oP '"width":\s*\K\d+' | head -1)
+    local height=$(grep '"height"' "$WAYBAR_DIR/config.jsonc" | grep -oP '\d+' | head -1)
+    echo "$width $height"
+}
+
+# Capture waybar screenshot
+capture_bar() {
+    local theme="$1"
+    local output="$2"
+    local width="$3"
+    local height="$4"
+
+    echo "  Capturing $theme..."
+
+    # Small delay for waybar to fully render
+    sleep 0.3
+
+    # Capture the top bar area
+    grim -g "0,0 ${width}x${height}" "$output"
+}
+
+# Apply theme
+apply_theme() {
+    local theme="$1"
+
+    # Update config
+    sed -i "s/^color_scheme=.*/color_scheme=$theme/" "$WAYBAR_DIR/suminami.conf"
+
+    # Regenerate styles
+    "$WAYBAR_DIR/scripts/generate-style" > /dev/null
+
+    # Restart waybar
+    pkill waybar 2>/dev/null || true
+    sleep 0.3
+    waybar &
+    disown
+
+    # Wait for waybar to start and system to settle
+    sleep 20
+}
+
+# Main
+main() {
+    echo "╔═══════════════════════════════════════════════════════════════════╗"
+    echo "║              SumiNami Bar - Screenshot Generator                  ║"
+    echo "╚═══════════════════════════════════════════════════════════════════╝"
+    echo ""
+
+    # Create screenshot directory
+    mkdir -p "$SCREENSHOT_DIR"
+
+    # Get dimensions
+    read -r width height <<< "$(get_dimensions)"
+    echo "Screen: ${width}x${height} (bar height: ${height}px)"
+    echo ""
+
+    # Save current theme to restore later
+    local original_theme=$(grep "^color_scheme=" "$WAYBAR_DIR/suminami.conf" | cut -d'=' -f2)
+    echo "Current theme: $original_theme"
+    echo ""
+
+    # Capture each theme
+    local screenshots=()
+
+    echo "Capturing themes..."
+    for theme in "${THEMES[@]}"; do
+        local screenshot="$SCREENSHOT_DIR/${theme}.png"
+        screenshots+=("$screenshot")
+
+        apply_theme "$theme"
+        capture_bar "$theme" "$screenshot" "$width" "$height"
+    done
+
+    echo ""
+    echo "Combining screenshots..."
+
+    # Stack all screenshots vertically
+    magick "${screenshots[@]}" -append "$OUTPUT_FILE"
+
+    echo ""
+    echo "Restoring original theme: $original_theme"
+    apply_theme "$original_theme"
+
+    echo ""
+    echo "✓ Screenshots saved to: $SCREENSHOT_DIR/"
+    echo "✓ Combined image: $OUTPUT_FILE"
+    echo ""
+
+    # Open the result
+    if command -v imv &>/dev/null; then
+        imv "$OUTPUT_FILE" &
+    elif command -v feh &>/dev/null; then
+        feh "$OUTPUT_FILE" &
+    fi
+}
+
+main "$@"

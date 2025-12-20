@@ -1,0 +1,355 @@
+@import "colors/kanagawa.css";
+@import "scale.css";
+
+/* Base styles */
+*,
+label {
+    font-family: "JetBrainsMono Nerd Font", monospace;
+    /* font-size and font-weight set in scale.css based on resolution/theme */
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+}
+
+window#waybar {
+    /* background-color set in scale.css based on theme */
+    color: @fujiWhite;
+}
+
+tooltip {
+    background-color: alpha(@sumiInk0, 0.95);
+    border: 1px solid @sumiInk5;
+    border-radius: 4px;
+    color: @fujiWhite;
+    text-shadow: none;
+    box-shadow: none;
+}
+
+tooltip label {
+    padding: 6px 10px;
+    text-shadow: none;
+}
+
+/* Launcher */
+#custom-launcher {
+    /* padding and font-size set in scale.css based on resolution */
+    color: @module-launcher;
+    transition: all 0.15s ease;
+}
+
+#custom-launcher:hover {
+    background: alpha(@sumiInk4, 0.9);
+}
+
+/* Workspaces */
+#workspaces {
+    padding: 0 8px;
+}
+
+#workspaces button {
+    padding: 0 6px;
+    color: @fujiWhite;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    border-top: none;
+    border-bottom: none;
+    box-shadow: none;
+    transition: all 0.15s ease;
+}
+
+#workspaces button.empty {
+    color: @sumiInk6;
+}
+
+#workspaces button:hover {
+    color: @oldWhite;
+    background: alpha(@sumiInk4, 0.9);
+    border: none;
+    box-shadow: none;
+}
+
+#workspaces button.active {
+    color: @module-workspace-active;
+}
+
+#workspaces button.urgent {
+    color: @state-critical;
+}
+
+/* Media player */
+#custom-media {
+    padding: 0 8px;
+    color: @module-media;
+    transition: all 0.15s ease;
+}
+
+#custom-media.paused {
+    color: @module-muted;
+}
+
+#custom-media.none {
+    padding: 0;
+    margin: 0;
+}
+
+#custom-media:hover {
+    background: alpha(@sumiInk4, 0.9);
+}
+
+/* Window title (hyprland/window module) */
+#window {
+    padding: 0 8px;
+    color: @module-muted;
+    font-style: italic;
+    font-size: 10px;
+}
+
+#window * {
+    color: inherit;
+}
+
+/* System tray */
+#tray {
+    padding: 0 8px;
+}
+
+#tray > .passive {
+    -gtk-icon-effect: dim;
+}
+
+/* All modules - consistent padding */
+#custom-cpu,
+#custom-memory,
+#custom-temp,
+#custom-weather,
+#custom-network,
+#custom-traffic,
+#custom-bluetooth,
+#custom-battery,
+#custom-backlight,
+#custom-audio,
+#custom-power-profile {
+    padding: 0 8px;
+    background: transparent;
+    transition: all 0.15s ease;
+}
+
+#clock {
+    padding: 0 8px;
+    padding-right: 16px;
+    background: transparent;
+    transition: all 0.15s ease;
+}
+
+/* Module colors - using semantic variables */
+#custom-cpu,
+#custom-memory,
+#custom-temp {
+    color: @module-system;
+}
+
+#custom-weather {
+    color: @module-weather;
+}
+
+#custom-network {
+    color: @module-network;
+}
+
+#custom-traffic {
+    color: @module-muted;
+}
+
+#custom-traffic.hidden {
+    padding: 0;
+    margin: 0;
+}
+
+#custom-audio {
+    color: @module-audio;
+}
+
+#custom-backlight,
+#custom-battery,
+#custom-power-profile {
+    color: @module-muted;
+}
+
+#clock {
+    color: @module-clock;
+}
+
+/* State colors - CPU */
+#custom-cpu.warning {
+    color: @state-warning;
+}
+
+#custom-cpu.critical {
+    color: @state-critical;
+}
+
+/* State colors - Memory */
+#custom-memory.warning {
+    color: @state-warning;
+}
+
+#custom-memory.critical {
+    color: @state-critical;
+}
+
+/* State colors - Temp */
+#custom-temp.warning {
+    color: @state-warning;
+}
+
+#custom-temp.critical {
+    color: @state-critical;
+}
+
+/* State colors - Network */
+#custom-network.disconnected {
+    color: @sumiInk6;
+}
+
+#custom-network.weak {
+    color: @state-warning;
+}
+
+/* State colors - Battery */
+#custom-battery.charging,
+#custom-battery.plugged {
+    color: @module-system;
+}
+
+#custom-battery.warning:not(.charging) {
+    color: @state-warning;
+}
+
+#custom-battery.critical:not(.charging) {
+    color: @state-critical;
+}
+
+#custom-battery.none {
+    padding: 0;
+    margin: 0;
+}
+
+/* State colors - Audio */
+#custom-audio.muted {
+    color: @sumiInk6;
+    padding: 0 16px;
+}
+
+/* State colors - Power Profile */
+#custom-power-profile.power-saver {
+    color: @module-system;
+}
+
+#custom-power-profile.balanced {
+    color: @module-audio;
+}
+
+#custom-power-profile.performance {
+    color: @state-warning;
+}
+
+#custom-power-profile.none {
+    padding: 0;
+    margin: 0;
+}
+
+/* Hover states - all interactive modules */
+#custom-cpu:hover,
+#custom-memory:hover,
+#custom-temp:hover,
+#custom-weather:hover,
+#custom-network:hover,
+#custom-traffic:hover,
+#custom-bluetooth:hover,
+#custom-battery:hover,
+#custom-backlight:hover,
+#custom-audio:hover,
+#custom-power-profile:hover,
+#clock:hover {
+    background: alpha(@sumiInk4, 0.9);
+}
+
+#custom-backlight:hover,
+#custom-battery:hover,
+#custom-power-profile:hover,
+#custom-bluetooth:hover,
+#custom-traffic:hover {
+    color: @fujiWhite;
+}
+
+/* Taskbar - running applications */
+#taskbar {
+    padding: 0 4px;
+}
+
+#taskbar button {
+    padding: 0 4px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    transition: all 0.15s ease;
+}
+
+#taskbar button:hover {
+    background: alpha(@sumiInk4, 0.9);
+}
+
+#taskbar button.active {
+    background: alpha(@sumiInk4, 0.6);
+}
+
+/* Bluetooth - custom module */
+#custom-bluetooth {
+    color: @module-bluetooth;
+}
+
+#custom-bluetooth.disabled {
+    color: @sumiInk6;
+}
+
+#custom-bluetooth.on {
+    color: @module-muted;
+}
+
+#custom-bluetooth.connected {
+    color: @module-bluetooth;
+}
+
+#custom-bluetooth.none {
+    padding: 0;
+    margin: 0;
+}
+
+/* Bluetooth - built-in waybar module */
+#bluetooth {
+    color: @module-bluetooth;
+    padding: 0 8px;
+}
+
+#bluetooth.off {
+    color: @sumiInk6;
+}
+
+#bluetooth.on {
+    color: @module-muted;
+}
+
+#bluetooth.connected {
+    color: @module-bluetooth;
+}
+
+#bluetooth.discoverable,
+#bluetooth.discovering {
+    color: @module-bluetooth;
+}
+
+#bluetooth.disabled {
+    color: @sumiInk6;
+}

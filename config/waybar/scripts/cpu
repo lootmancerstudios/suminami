@@ -1,0 +1,103 @@
+#!/bin/bash
+# CPU usage with dynamic coloring and rich tooltip
+
+# Source theme colors
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/colors.sh" 2>/dev/null || {
+    # Fallback colors if colors.sh doesn't exist
+    COLOR_ACCENT="#D27E99"
+    COLOR_FG="#DCD7BA"
+    COLOR_MUTED="#727169"
+    COLOR_SYSTEM="#98BB6C"
+    COLOR_WARNING="#E6C384"
+    COLOR_CRITICAL="#E46876"
+}
+
+STATE_FILE="/tmp/waybar-cpu-state"
+
+# Read current CPU stats (first line of /proc/stat)
+read -r _ user nice system idle iowait irq softirq steal _ _ < /proc/stat
+
+# Calculate totals
+total=$((user + nice + system + idle + iowait + irq + softirq + steal))
+idle_total=$((idle + iowait))
+
+# Read previous state
+if [ -f "$STATE_FILE" ]; then
+    read -r prev_total prev_idle < "$STATE_FILE"
+else
+    prev_total=$total
+    prev_idle=$idle_total
+fi
+
+# Save current state
+echo "$total $idle_total" > "$STATE_FILE"
+
+# Calculate usage
+total_delta=$((total - prev_total))
+if [ "$total_delta" -gt 0 ]; then
+    idle_delta=$((idle_total - prev_idle))
+    usage=$((100 * (total_delta - idle_delta) / total_delta))
+else
+    usage=0
+fi
+
+# Clamp to 0-100
+[ "$usage" -lt 0 ] && usage=0
+[ "$usage" -gt 100 ] && usage=100
+
+# Determine class
+class=""
+[ "$usage" -ge 50 ] && class="warning"
+[ "$usage" -ge 80 ] && class="critical"
+
+# Load averages
+read -r load1 load5 load15 _ _ < /proc/loadavg
+
+# Per-core usage (simplified - just show current frequencies)
+cores=$(nproc)
+
+# Theme colors (from colors.sh)
+accent="$COLOR_ACCENT"
+gray="$COLOR_MUTED"
+white="$COLOR_FG"
+green="$COLOR_SYSTEM"
+yellow="$COLOR_WARNING"
+red="$COLOR_CRITICAL"
+
+# Color based on usage
+usage_color="$green"
+[ "$usage" -ge 50 ] && usage_color="$yellow"
+[ "$usage" -ge 80 ] && usage_color="$red"
+
+# Load color (based on load vs cores)
+load1_val=$(echo "$load1" | cut -d. -f1)
+load_color="$green"
+[ "$load1_val" -ge "$cores" ] && load_color="$yellow"
+[ "$load1_val" -ge $((cores * 2)) ] && load_color="$red"
+
+# Build tooltip
+tooltip="<span color='$accent'><b>CPU Usage:</b></span> <span color='$usage_color'>${usage}%</span>"
+tooltip="$tooltip\n<span color='$gray'>Cores:</span> <span color='$white'>$cores</span>"
+tooltip="$tooltip\n"
+tooltip="$tooltip\n<span color='$accent'><b>Load Average</b></span>"
+tooltip="$tooltip\n<span color='$gray'>1 min:</span>  <span color='$load_color'>$load1</span>"
+tooltip="$tooltip\n<span color='$gray'>5 min:</span>  <span color='$white'>$load5</span>"
+tooltip="$tooltip\n<span color='$gray'>15 min:</span> <span color='$white'>$load15</span>"
+
+# Top 5 CPU processes
+tooltip="$tooltip\n"
+tooltip="$tooltip\n<span color='$accent'><b>Top Processes</b></span>"
+while IFS= read -r line; do
+    pcpu=$(echo "$line" | awk '{print $1}')
+    # Get process name (comm is limited to 15 chars by kernel TASK_COMM_LEN)
+    pname=$(echo "$line" | awk '{$1=""; sub(/^[[:space:]]+/, ""); print}')
+    # Indicate truncation if name is exactly 15 chars (kernel limit)
+    [ ${#pname} -eq 15 ] && pname="${pname}…"
+    tooltip="$tooltip\n<span color='$gray'>•</span> <span color='$gray'>$pname</span> <span color='$white'>${pcpu}%</span>"
+done < <(ps -eo %cpu,comm --sort=-%cpu | awk 'NR>1 && NR<=6')
+
+tooltip="$tooltip\n"
+tooltip="$tooltip\n<span color='$gray'>Click to open system monitor</span>"
+
+echo "{\"text\": \"󰍛 ${usage}%\", \"class\": \"$class\", \"tooltip\": \"$tooltip\"}"

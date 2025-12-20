@@ -1,0 +1,197 @@
+#!/bin/bash
+# Battery widget with multi-battery support
+# Combines multiple batteries (e.g., Surface Book 2) into single display
+
+# Source theme colors
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/colors.sh" 2>/dev/null || {
+    COLOR_ACCENT="#D27E99"
+    COLOR_FG="#DCD7BA"
+    COLOR_MUTED="#727169"
+    COLOR_SYSTEM="#98BB6C"
+    COLOR_AUDIO="#7FB4CA"
+    COLOR_WARNING="#E6C384"
+    COLOR_CRITICAL="#E46876"
+}
+
+# Theme colors
+accent="$COLOR_ACCENT"
+blue="$COLOR_AUDIO"
+gray="$COLOR_MUTED"
+white="$COLOR_FG"
+green="$COLOR_SYSTEM"
+yellow="$COLOR_WARNING"
+red="$COLOR_CRITICAL"
+
+# Find all batteries
+batteries=()
+for bat in /sys/class/power_supply/BAT*; do
+    [ -d "$bat" ] && batteries+=("$bat")
+done
+
+# No batteries found (desktop PC)
+if [ ${#batteries[@]} -eq 0 ]; then
+    echo '{"text": "", "tooltip": "", "class": "none"}'
+    exit 0
+fi
+
+# Collect battery data
+total_energy_now=0
+total_energy_full=0
+total_power=0
+total_current=0
+use_current=false
+charging=false
+discharging=false
+full=true
+battery_details=""
+
+for bat in "${batteries[@]}"; do
+    name=$(basename "$bat")
+
+    # Read values (handle both energy_* and charge_* naming)
+    if [ -f "$bat/energy_now" ]; then
+        energy_now=$(cat "$bat/energy_now" 2>/dev/null || echo 0)
+        energy_full=$(cat "$bat/energy_full" 2>/dev/null || echo 0)
+        power=$(cat "$bat/power_now" 2>/dev/null || echo 0)
+        current=0
+    elif [ -f "$bat/charge_now" ]; then
+        energy_now=$(cat "$bat/charge_now" 2>/dev/null || echo 0)
+        energy_full=$(cat "$bat/charge_full" 2>/dev/null || echo 0)
+        current=$(cat "$bat/current_now" 2>/dev/null || echo 0)
+        power=0
+        use_current=true
+    else
+        continue
+    fi
+
+    status=$(cat "$bat/status" 2>/dev/null || echo "Unknown")
+
+    # Calculate this battery's percentage (capped at 100)
+    if [ "$energy_full" -gt 0 ]; then
+        pct=$((100 * energy_now / energy_full))
+        [ "$pct" -gt 100 ] && pct=100
+    else
+        pct=0
+    fi
+
+    # Track totals
+    total_energy_now=$((total_energy_now + energy_now))
+    total_energy_full=$((total_energy_full + energy_full))
+    total_power=$((total_power + power))
+    total_current=$((total_current + current))
+
+    # Track overall status
+    case "$status" in
+        Charging) charging=true; full=false ;;
+        Discharging) discharging=true; full=false ;;
+        "Not charging") full=false ;;
+        Full) ;;
+        *) full=false ;;
+    esac
+
+    # Color for this battery
+    bat_color="$green"
+    [ "$pct" -lt 60 ] && bat_color="$white"
+    [ "$pct" -lt 30 ] && bat_color="$yellow"
+    [ "$pct" -lt 15 ] && bat_color="$red"
+
+    # Add to tooltip
+    [ -n "$battery_details" ] && battery_details="$battery_details\n"
+    battery_details="$battery_details<span color='$gray'>$name:</span> <span color='$bat_color'>${pct}%</span> <span color='$gray'>($status)</span>"
+done
+
+# Calculate combined percentage (capped at 100)
+if [ "$total_energy_full" -gt 0 ]; then
+    capacity=$((100 * total_energy_now / total_energy_full))
+    [ "$capacity" -gt 100 ] && capacity=100
+else
+    capacity=0
+fi
+
+# Determine overall status and icon
+if $charging; then
+    status_text="Charging"
+    icon="󰂄"
+    class="charging"
+elif $discharging; then
+    status_text="Discharging"
+    # Icon based on level
+    if [ "$capacity" -ge 90 ]; then icon="󰁹"
+    elif [ "$capacity" -ge 80 ]; then icon="󰂂"
+    elif [ "$capacity" -ge 70 ]; then icon="󰂁"
+    elif [ "$capacity" -ge 60 ]; then icon="󰂀"
+    elif [ "$capacity" -ge 50 ]; then icon="󰁿"
+    elif [ "$capacity" -ge 40 ]; then icon="󰁾"
+    elif [ "$capacity" -ge 30 ]; then icon="󰁽"
+    elif [ "$capacity" -ge 20 ]; then icon="󰁼"
+    elif [ "$capacity" -ge 10 ]; then icon="󰁻"
+    else icon="󰁺"
+    fi
+    class=""
+    [ "$capacity" -le 30 ] && class="warning"
+    [ "$capacity" -le 15 ] && class="critical"
+elif $full; then
+    status_text="Full"
+    icon="󰚥"
+    class="plugged"
+else
+    status_text="Plugged in"
+    icon="󰚥"
+    class="plugged"
+fi
+
+# Time estimate
+time_str=""
+if $use_current && [ "$total_current" -gt 0 ]; then
+    # Charge-based: time = charge / current (both in µAh and µA, gives hours)
+    if $discharging; then
+        minutes=$((60 * total_energy_now / total_current))
+        hours=$((minutes / 60))
+        mins=$((minutes % 60))
+        time_str="${hours}h ${mins}m remaining"
+    elif $charging; then
+        remaining=$((total_energy_full - total_energy_now))
+        if [ "$remaining" -gt 0 ]; then
+            minutes=$((60 * remaining / total_current))
+            hours=$((minutes / 60))
+            mins=$((minutes % 60))
+            time_str="${hours}h ${mins}m to full"
+        fi
+    fi
+elif [ "$total_power" -gt 0 ]; then
+    # Energy-based: time = energy / power (both in µWh and µW, gives hours)
+    if $discharging; then
+        minutes=$((60 * total_energy_now / total_power))
+        hours=$((minutes / 60))
+        mins=$((minutes % 60))
+        time_str="${hours}h ${mins}m remaining"
+    elif $charging; then
+        remaining=$((total_energy_full - total_energy_now))
+        if [ "$remaining" -gt 0 ]; then
+            minutes=$((60 * remaining / total_power))
+            hours=$((minutes / 60))
+            mins=$((minutes % 60))
+            time_str="${hours}h ${mins}m to full"
+        fi
+    fi
+fi
+
+# Color for combined percentage
+cap_color="$green"
+[ "$capacity" -lt 60 ] && cap_color="$white"
+[ "$capacity" -lt 30 ] && cap_color="$yellow"
+[ "$capacity" -lt 15 ] && cap_color="$red"
+
+# Build tooltip
+tooltip="<span color='$accent'><b>Battery</b></span> <span color='$gray'>($status_text)</span>"
+tooltip="$tooltip\n<span color='$cap_color'><b>${capacity}%</b></span>"
+[ -n "$time_str" ] && tooltip="$tooltip <span color='$gray'>- $time_str</span>"
+
+# Show per-battery details if multiple batteries
+if [ ${#batteries[@]} -gt 1 ]; then
+    tooltip="$tooltip\n"
+    tooltip="$tooltip\n$battery_details"
+fi
+
+echo "{\"text\": \"$icon ${capacity}%\", \"class\": \"$class\", \"tooltip\": \"$tooltip\"}"

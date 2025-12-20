@@ -1,0 +1,21 @@
+# Backup files
+*.bak
+*~
+
+# Cache
+__pycache__/
+*.pyc
+.cache/
+
+# Generated files that shouldn't be committed
+config/waybar/scale.css
+config/waybar/scripts/colors.sh
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temp files
+/tmp/
+*.tmp
+*.log

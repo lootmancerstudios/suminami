@@ -1,0 +1,49 @@
+/* Gruvbox Dark - https://github.com/morhetz/gruvbox */
+/* Retro groove color scheme with warm, earthy tones */
+
+/* Background shades (dark mode - standard contrast) */
+@define-color sumiInk0 #282828;
+@define-color sumiInk1 #32302f;
+@define-color sumiInk2 #3c3836;
+@define-color sumiInk3 #504945;
+@define-color sumiInk4 #665c54;
+@define-color sumiInk5 #7c6f64;
+@define-color sumiInk6 #928374;
+
+/* Foreground */
+@define-color fujiWhite #ebdbb2;
+@define-color fujiGray #928374;
+@define-color oldWhite #d5c4a1;
+
+/* Accent colors (bright variants for pop) */
+@define-color sakuraPink #d3869b;
+@define-color oniViolet #b16286;
+@define-color crystalBlue #83a598;
+@define-color springBlue #83a598;
+@define-color lightBlue #8ec07c;
+
+/* Semantic colors */
+@define-color springGreen #b8bb26;
+@define-color carpYellow #fabd2f;
+@define-color waveRed #fb4934;
+@define-color peachRed #fb4934;
+@define-color surimiOrange #fe8019;
+
+/* Extra */
+@define-color waveAqua #8ec07c;
+@define-color katanaGray #928374;
+@define-color dragonBlue #458588;
+
+/* Semantic module colors (dark theme - warm retro groove) */
+@define-color module-clock #fe8019;
+@define-color module-launcher #fe8019;
+@define-color module-workspace-active #fe8019;
+@define-color module-system #fabd2f;
+@define-color module-media #b8bb26;
+@define-color module-weather #83a598;
+@define-color module-network #d3869b;
+@define-color module-audio #8ec07c;
+@define-color module-bluetooth #83a598;
+@define-color module-muted #a89984;
+@define-color state-warning #fabd2f;
+@define-color state-critical #fb4934;

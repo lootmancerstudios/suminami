@@ -1,0 +1,49 @@
+/* Catppuccin Frappé - https://github.com/catppuccin/catppuccin */
+/* Medium dark variant with warm undertones */
+
+/* Background shades (warmed up) */
+@define-color sumiInk0 #252320;
+@define-color sumiInk1 #2b2926;
+@define-color sumiInk2 #33312e;
+@define-color sumiInk3 #33312e;
+@define-color sumiInk4 #454340;
+@define-color sumiInk5 #575553;
+@define-color sumiInk6 #6a6866;
+
+/* Foreground */
+@define-color fujiWhite #c6d0f5;
+@define-color fujiGray #737994;
+@define-color oldWhite #b5bfe2;
+
+/* Accent colors */
+@define-color sakuraPink #f4b8e4;
+@define-color oniViolet #ca9ee6;
+@define-color crystalBlue #8caaee;
+@define-color springBlue #85c1dc;
+@define-color lightBlue #99d1db;
+
+/* Semantic colors */
+@define-color springGreen #a6d189;
+@define-color carpYellow #e5c890;
+@define-color waveRed #e78284;
+@define-color peachRed #ea999c;
+@define-color surimiOrange #ef9f76;
+
+/* Extra */
+@define-color waveAqua #81c8be;
+@define-color katanaGray #838ba7;
+@define-color dragonBlue #85c1dc;
+
+/* Semantic module colors (dark theme - vibrant pastels) */
+@define-color module-clock #f4b8e4;
+@define-color module-launcher #f4b8e4;
+@define-color module-workspace-active #f4b8e4;
+@define-color module-system #a6d189;
+@define-color module-media #a6d189;
+@define-color module-weather #99d1db;
+@define-color module-network #ca9ee6;
+@define-color module-audio #85c1dc;
+@define-color module-bluetooth #85c1dc;
+@define-color module-muted #737994;
+@define-color state-warning #e5c890;
+@define-color state-critical #e78284;

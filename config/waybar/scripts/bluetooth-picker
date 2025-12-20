@@ -1,0 +1,105 @@
+#!/bin/bash
+# Bluetooth device picker using wofi
+
+# Check for custom command override
+CONFIG_FILE="$HOME/.config/waybar/suminami.conf"
+if [ -f "$CONFIG_FILE" ]; then
+    custom_cmd=$(grep "^bluetooth_click_command=" "$CONFIG_FILE" | cut -d'=' -f2-)
+    if [ -n "$custom_cmd" ]; then
+        exec $custom_cmd
+    fi
+fi
+
+# Get paired devices
+get_paired_devices() {
+    bluetoothctl devices Paired 2>/dev/null | while read -r _ mac name; do
+        # Check if connected
+        if bluetoothctl info "$mac" 2>/dev/null | grep -q "Connected: yes"; then
+            echo "󰂱  $name|disconnect:$mac"
+        else
+            echo "󰂯  $name|connect:$mac"
+        fi
+    done
+}
+
+# Get discovered but unpaired devices
+get_discovered_devices() {
+    # Get all devices, exclude paired ones
+    paired=$(bluetoothctl devices Paired 2>/dev/null | awk '{print $2}')
+    bluetoothctl devices 2>/dev/null | while read -r _ mac name; do
+        # Skip if paired
+        echo "$paired" | grep -q "$mac" && continue
+        echo "󰂲  $name (new)|pair:$mac"
+    done
+}
+
+# Build menu
+menu=""
+
+# Paired devices section
+paired=$(get_paired_devices)
+if [ -n "$paired" ]; then
+    menu="$paired"
+fi
+
+# Discovered devices section
+discovered=$(get_discovered_devices)
+if [ -n "$discovered" ]; then
+    [ -n "$menu" ] && menu="$menu\n"
+    menu="$menu$discovered"
+fi
+
+# Add options
+[ -n "$menu" ] && menu="$menu\n─────────────────────────|separator"
+menu="${menu}\n󰑓  Scan for devices|scan"
+menu="${menu}\n󰜉  Toggle Bluetooth|toggle"
+
+# Show wofi
+choice=$(echo -e "$menu" | wofi --show dmenu --prompt "Bluetooth" --cache-file /dev/null | tail -1)
+
+[ -z "$choice" ] && exit 0
+
+# Parse action
+action=$(echo "$choice" | cut -d'|' -f2)
+
+case "$action" in
+    connect:*)
+        mac="${action#connect:}"
+        notify-send "Bluetooth" "Connecting..." -t 2000
+        bluetoothctl connect "$mac" && notify-send "Bluetooth" "Connected" -t 2000 || notify-send "Bluetooth" "Connection failed" -t 2000
+        ;;
+    disconnect:*)
+        mac="${action#disconnect:}"
+        bluetoothctl disconnect "$mac" && notify-send "Bluetooth" "Disconnected" -t 2000
+        ;;
+    pair:*)
+        mac="${action#pair:}"
+        notify-send "Bluetooth" "Pairing..." -t 2000
+        if bluetoothctl pair "$mac"; then
+            bluetoothctl trust "$mac"
+            notify-send "Bluetooth" "Paired successfully. Connecting..." -t 2000
+            bluetoothctl connect "$mac"
+        else
+            notify-send "Bluetooth" "Pairing failed" -t 2000
+        fi
+        ;;
+    scan)
+        notify-send "Bluetooth" "Scanning for 8 seconds..." -t 2000
+        # Run scan with timeout
+        bluetoothctl --timeout 8 scan on &>/dev/null
+        notify-send "Bluetooth" "Scan complete" -t 2000
+        # Re-open picker
+        exec "$0"
+        ;;
+    toggle)
+        powered=$(bluetoothctl show | grep "Powered:" | awk '{print $2}')
+        if [ "$powered" = "yes" ]; then
+            bluetoothctl power off && notify-send "Bluetooth" "Powered off" -t 2000
+        else
+            bluetoothctl power on && notify-send "Bluetooth" "Powered on" -t 2000
+        fi
+        ;;
+    separator)
+        exit 0
+        ;;
+esac

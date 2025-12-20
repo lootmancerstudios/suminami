@@ -1,0 +1,420 @@
+#!/bin/bash
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║                        SumiNami Bar                               ║
+# ║              Style Generator / Configuration Loader               ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+# Called at waybar startup to adapt to display and apply configuration
+
+WAYBAR_DIR="$HOME/.config/waybar"
+CONFIG_FILE="$WAYBAR_DIR/suminami.conf"
+STYLE_FILE="$WAYBAR_DIR/style.css"
+SCALE_FILE="$WAYBAR_DIR/scale.css"
+WOFI_DIR="$HOME/.config/wofi"
+
+# ─────────────────────────────────────────────────────────────────────
+# Read configuration
+# ─────────────────────────────────────────────────────────────────────
+get_config() {
+    local key="$1"
+    local default="$2"
+    if [ -f "$CONFIG_FILE" ]; then
+        value=$(grep "^${key}=" "$CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d ' ')
+        [ -n "$value" ] && echo "$value" || echo "$default"
+    else
+        echo "$default"
+    fi
+}
+
+# Load config values
+color_scheme=$(get_config "color_scheme" "kanagawa")
+module_taskbar=$(get_config "module_taskbar" "false")
+module_media=$(get_config "module_media" "true")
+module_weather=$(get_config "module_weather" "true")
+module_bluetooth=$(get_config "module_bluetooth" "true")
+module_backlight=$(get_config "module_backlight" "true")
+tooltip_delay=$(get_config "tooltip_delay" "200")
+
+# Font weight - 700 for better readability across all themes
+font_weight="700"
+
+# Detect light themes (for other adjustments)
+# Use space-delimited match to avoid partial matches (e.g., kanagawa vs kanagawa-lotus)
+light_themes=" kanagawa-lotus catppuccin-latte "
+if [[ "$light_themes" == *" $color_scheme "* ]]; then
+    is_light_theme="true"
+else
+    is_light_theme="false"
+fi
+
+# Verify color scheme exists, fallback to kanagawa
+color_file="colors/${color_scheme}.css"
+if [ ! -f "$WAYBAR_DIR/$color_file" ]; then
+    echo "Warning: Color scheme '$color_scheme' not found, falling back to kanagawa" >&2
+    color_scheme="kanagawa"
+    color_file="colors/kanagawa.css"
+    font_weight="500"
+fi
+
+# ─────────────────────────────────────────────────────────────────────
+# Detect screen resolution
+# ─────────────────────────────────────────────────────────────────────
+get_width() {
+    # Try Hyprland first
+    if command -v hyprctl &>/dev/null; then
+        width=$(hyprctl monitors -j 2>/dev/null | grep -oP '"width":\s*\K\d+' | head -1)
+        [ -n "$width" ] && echo "$width" && return
+    fi
+
+    # Try wlr-randr (Sway, etc.)
+    if command -v wlr-randr &>/dev/null; then
+        width=$(wlr-randr 2>/dev/null | grep -oP '\d+x\d+' | head -1 | cut -dx -f1)
+        [ -n "$width" ] && echo "$width" && return
+    fi
+
+    # Try xrandr (X11 fallback)
+    if command -v xrandr &>/dev/null; then
+        width=$(xrandr 2>/dev/null | grep '\*' | head -1 | awk '{print $1}' | cut -dx -f1)
+        [ -n "$width" ] && echo "$width" && return
+    fi
+
+    echo "1920"
+}
+
+width=$(get_width)
+
+# ─────────────────────────────────────────────────────────────────────
+# Resolution scaling tiers
+# ─────────────────────────────────────────────────────────────────────
+if [ "$width" -lt 1600 ]; then
+    tier="small"
+    font_size="11px"
+    bar_height="38"
+    icon_size="14"
+    launcher_size="14px"
+    launcher_padding="0 12px 0 16px"
+    wofi_font="11px"
+    wofi_width="400"
+    wofi_height="320"
+elif [ "$width" -lt 1920 ]; then
+    tier="medium"
+    font_size="12px"
+    bar_height="42"
+    icon_size="15"
+    launcher_size="16px"
+    launcher_padding="0 14px 0 18px"
+    wofi_font="12px"
+    wofi_width="450"
+    wofi_height="380"
+elif [ "$width" -lt 2560 ]; then
+    tier="large"
+    font_size="13px"
+    bar_height="46"
+    icon_size="16"
+    launcher_size="18px"
+    launcher_padding="0 14px 0 20px"
+    wofi_font="13px"
+    wofi_width="500"
+    wofi_height="420"
+else
+    tier="xlarge"
+    font_size="14px"
+    bar_height="50"
+    icon_size="18"
+    launcher_size="20px"
+    launcher_padding="0 16px 0 22px"
+    wofi_font="14px"
+    wofi_width="550"
+    wofi_height="480"
+fi
+
+# ─────────────────────────────────────────────────────────────────────
+# Apply color scheme to style.css
+# ─────────────────────────────────────────────────────────────────────
+color_file="colors/${color_scheme}.css"
+if [ -f "$WAYBAR_DIR/$color_file" ]; then
+    # Update the @import in style.css
+    sed -i "s|@import \"colors/[^\"]*\"|@import \"$color_file\"|" "$STYLE_FILE"
+fi
+
+# ─────────────────────────────────────────────────────────────────────
+# Parse color values from CSS file (needed for scale.css and other configs)
+# ─────────────────────────────────────────────────────────────────────
+get_color() {
+    local var="$1"
+    grep "@define-color $var" "$WAYBAR_DIR/$color_file" 2>/dev/null | grep -oP '#[0-9A-Fa-f]{6}' | head -1
+}
+
+# Get key colors from the scheme
+bg_color=$(get_color "sumiInk0") || bg_color="#16161D"
+bg_light=$(get_color "sumiInk3") || bg_light="#363646"
+fg_color=$(get_color "fujiWhite") || fg_color="#DCD7BA"
+accent=$(get_color "sakuraPink") || accent="#D27E99"
+border=$(get_color "sumiInk5") || border="#363646"
+
+# ─────────────────────────────────────────────────────────────────────
+# Generate scale.css
+# ─────────────────────────────────────────────────────────────────────
+
+# Theme-specific opacity (Gruvbox 100%, Catppuccin 95%, Kanagawa 90%)
+if echo "$color_scheme" | grep -q "gruvbox"; then
+    bar_bg="${bg_color}"  # Solid color, no alpha
+elif echo "$color_scheme" | grep -q "catppuccin"; then
+    bar_bg="alpha(@sumiInk0, 0.95)"
+else
+    bar_bg="alpha(@sumiInk0, 0.9)"
+fi
+
+cat > "$SCALE_FILE" << EOF
+/* SumiNami Bar - Auto-generated for ${width}px ($tier tier) */
+/* Color scheme: $color_scheme */
+
+*,
+label {
+    font-size: $font_size;
+    font-weight: $font_weight;
+}
+
+#custom-launcher {
+    font-size: $launcher_size;
+    padding: $launcher_padding;
+}
+
+/* Theme-specific background opacity */
+window#waybar {
+    background-color: ${bar_bg};
+}
+
+/* Tooltip colors - hardcoded for theme compatibility */
+window tooltip,
+window#waybar tooltip {
+    background-color: ${bg_color};
+    border-color: ${border};
+}
+
+window tooltip label,
+window#waybar tooltip label {
+    color: ${fg_color};
+}
+EOF
+
+# ─────────────────────────────────────────────────────────────────────
+# Update waybar config.jsonc (height/icon-size only - colors done later)
+# ─────────────────────────────────────────────────────────────────────
+sed -i "s/\"height\": [0-9]*/\"height\": $bar_height/" "$WAYBAR_DIR/config.jsonc"
+sed -i "s/\"icon-size\": [0-9]*/\"icon-size\": $icon_size/" "$WAYBAR_DIR/config.jsonc"
+
+# ─────────────────────────────────────────────────────────────────────
+# Generate wofi config
+# ─────────────────────────────────────────────────────────────────────
+mkdir -p "$WOFI_DIR"
+
+cat > "$WOFI_DIR/config" << EOF
+## SumiNami Bar - Wofi config
+## Auto-generated for ${width}px ($tier tier)
+
+# Appearance
+width=$wofi_width
+height=$wofi_height
+prompt=Search...
+image_size=24
+columns=1
+allow_images=true
+hide_scroll=false
+term=kitty
+
+# Behavior
+allow_markup=true
+insensitive=true
+matching=fuzzy
+
+# Position
+location=center
+EOF
+
+# ─────────────────────────────────────────────────────────────────────
+# Generate wofi style
+# ─────────────────────────────────────────────────────────────────────
+# Get additional colors for wofi
+bg_input=$(get_color "sumiInk2") || bg_input="#1a1a22"
+bg_hover=$(get_color "sumiInk4") || bg_hover="#2A2A37"
+muted=$(get_color "sumiInk6") || muted="#54546D"
+
+# Use semantic module-clock color for accent (WCAG compliant on light themes)
+accent_color=$(get_color "module-clock") || accent_color="$accent"
+
+cat > "$WOFI_DIR/style.css" << EOF
+/* SumiNami Bar - Wofi theme ($color_scheme) */
+/* Auto-generated for ${width}px ($tier tier) */
+
+* {
+    font-family: "JetBrainsMono Nerd Font", monospace;
+    font-size: $wofi_font;
+    font-weight: $font_weight;
+    text-shadow: none;
+    -gtk-icon-shadow: none;
+    box-shadow: none;
+}
+
+window {
+    background-color: $bg_color;
+    border: 1px solid $border;
+    border-radius: 8px;
+    box-shadow: none;
+}
+
+#input {
+    background-color: $bg_input;
+    border: 1px solid $border;
+    border-radius: 4px;
+    color: $fg_color;
+    padding: 8px 12px;
+    margin: 8px;
+}
+
+#input:focus {
+    border-color: $accent_color;
+}
+
+#inner-box {
+    margin: 0 8px 8px 8px;
+}
+
+#outer-box {
+    margin: 0;
+    padding: 0;
+}
+
+#scroll {
+    margin: 0;
+}
+
+#text {
+    color: $fg_color;
+    padding: 4px 0;
+    text-shadow: none;
+}
+
+#text:selected {
+    color: $fg_color;
+    text-shadow: none;
+}
+
+#entry {
+    padding: 6px 12px;
+    border-radius: 4px;
+    margin: 2px 0;
+}
+
+#entry:selected {
+    background-color: alpha($accent_color, 0.15);
+    border: none;
+    outline: none;
+}
+
+#entry:hover {
+    background-color: $bg_hover;
+}
+
+#entry:selected #text {
+    color: $accent_color;
+}
+
+scrollbar {
+    background-color: transparent;
+}
+
+scrollbar slider {
+    background-color: $border;
+    border-radius: 4px;
+    min-width: 6px;
+    min-height: 20px;
+}
+
+scrollbar slider:hover {
+    background-color: $muted;
+}
+EOF
+
+# ─────────────────────────────────────────────────────────────────────
+# Update GTK tooltip delay
+# ─────────────────────────────────────────────────────────────────────
+mkdir -p "$HOME/.config/gtk-3.0"
+if [ -f "$HOME/.config/gtk-3.0/settings.ini" ]; then
+    if grep -q "gtk-tooltip-timeout" "$HOME/.config/gtk-3.0/settings.ini"; then
+        sed -i "s/gtk-tooltip-timeout=.*/gtk-tooltip-timeout=$tooltip_delay/" "$HOME/.config/gtk-3.0/settings.ini"
+    else
+        echo "gtk-tooltip-timeout=$tooltip_delay" >> "$HOME/.config/gtk-3.0/settings.ini"
+    fi
+else
+    cat > "$HOME/.config/gtk-3.0/settings.ini" << EOF
+[Settings]
+gtk-tooltip-timeout=$tooltip_delay
+EOF
+fi
+
+# ─────────────────────────────────────────────────────────────────────
+# Generate colors.sh for scripts to source
+# ─────────────────────────────────────────────────────────────────────
+COLORS_FILE="$WAYBAR_DIR/scripts/colors.sh"
+
+# Get all semantic colors for tooltips
+tooltip_accent=$(get_color "module-clock") || tooltip_accent="#D27E99"
+tooltip_system=$(get_color "module-system") || tooltip_system="#98BB6C"
+tooltip_weather=$(get_color "module-weather") || tooltip_weather="#A3D4D5"
+tooltip_network=$(get_color "module-network") || tooltip_network="#957FB8"
+tooltip_audio=$(get_color "module-audio") || tooltip_audio="#7FB4CA"
+tooltip_muted=$(get_color "module-muted") || tooltip_muted="#727169"
+tooltip_warning=$(get_color "state-warning") || tooltip_warning="#E6C384"
+tooltip_critical=$(get_color "state-critical") || tooltip_critical="#E46876"
+
+# Highlight color for tooltip values (pink for blossom, blue for others)
+if [ "$color_scheme" = "kanagawa-blossom" ]; then
+    tooltip_highlight="#F4A7B9"
+else
+    tooltip_highlight="$tooltip_audio"
+fi
+
+cat > "$COLORS_FILE" << EOF
+#!/bin/bash
+# SumiNami Bar - Theme colors for scripts
+# Auto-generated for: $color_scheme
+# DO NOT EDIT - regenerated by generate-style
+
+# Theme info
+THEME_NAME="$color_scheme"
+THEME_IS_LIGHT="$is_light_theme"
+
+# Background colors
+COLOR_BG="$bg_color"
+COLOR_BG_LIGHT="$bg_light"
+COLOR_BORDER="$border"
+
+# Foreground colors
+COLOR_FG="$fg_color"
+COLOR_MUTED="$tooltip_muted"
+
+# Accent colors (WCAG compliant)
+COLOR_ACCENT="$tooltip_accent"
+COLOR_SYSTEM="$tooltip_system"
+COLOR_WEATHER="$tooltip_weather"
+COLOR_NETWORK="$tooltip_network"
+COLOR_AUDIO="$tooltip_audio"
+COLOR_HIGHLIGHT="$tooltip_highlight"
+
+# State colors
+COLOR_WARNING="$tooltip_warning"
+COLOR_CRITICAL="$tooltip_critical"
+EOF
+
+chmod +x "$COLORS_FILE"
+
+# ─────────────────────────────────────────────────────────────────────
+# Update clock calendar colors in config.jsonc (now that colors are defined)
+# ─────────────────────────────────────────────────────────────────────
+sed -i "s|\"months\": \"<span color='[^']*'|\"months\": \"<span color='$fg_color'|g" "$WAYBAR_DIR/config.jsonc"
+sed -i "s|\"weeks\": \"<span color='[^']*'|\"weeks\": \"<span color='$tooltip_muted'|g" "$WAYBAR_DIR/config.jsonc"
+sed -i "s|\"weekdays\": \"<span color='[^']*'|\"weekdays\": \"<span color='$tooltip_accent'|g" "$WAYBAR_DIR/config.jsonc"
+sed -i "s|\"days\": \"<span color='[^']*'|\"days\": \"<span color='$tooltip_muted'|g" "$WAYBAR_DIR/config.jsonc"
+sed -i "s|\"today\": \"<span color='[^']*'|\"today\": \"<span color='$tooltip_accent'|g" "$WAYBAR_DIR/config.jsonc"
+
+echo "$tier:$color_scheme:$bar_height"

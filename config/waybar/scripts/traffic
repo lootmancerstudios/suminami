@@ -1,0 +1,111 @@
+#!/bin/bash
+# Traffic monitor - shows live download/upload speeds
+
+# Check if module is enabled in config
+CONFIG_FILE="$HOME/.config/waybar/suminami.conf"
+if [ -f "$CONFIG_FILE" ]; then
+    enabled=$(grep "^module_traffic=" "$CONFIG_FILE" | cut -d'=' -f2 | tr -d ' ')
+    if [ "$enabled" = "false" ]; then
+        echo '{"text": "", "class": "hidden"}'
+        exit 0
+    fi
+fi
+
+# Source theme colors
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/colors.sh" 2>/dev/null || {
+    COLOR_SYSTEM="#98BB6C"
+    COLOR_HIGHLIGHT="#7FB4CA"
+    COLOR_MUTED="#727169"
+    COLOR_FG="#DCD7BA"
+}
+
+STATE_FILE="/tmp/waybar-traffic-state"
+
+# Theme colors
+down_color="$COLOR_SYSTEM"
+up_color="$COLOR_HIGHLIGHT"
+gray="$COLOR_MUTED"
+white="$COLOR_FG"
+
+# Find active interface
+iface=$(ip route | awk '/default/ && !/linkdown/ {print $5; exit}')
+
+if [ -z "$iface" ]; then
+    echo '{"text": "", "class": "hidden"}'
+    exit 0
+fi
+
+# Get current bytes
+rx_bytes=$(cat "/sys/class/net/$iface/statistics/rx_bytes" 2>/dev/null || echo 0)
+tx_bytes=$(cat "/sys/class/net/$iface/statistics/tx_bytes" 2>/dev/null || echo 0)
+now=$(date +%s%N)
+
+# Read previous state
+if [ -f "$STATE_FILE" ]; then
+    read -r prev_time prev_rx prev_tx prev_iface < "$STATE_FILE"
+    [ "$prev_iface" != "$iface" ] && prev_time=$now prev_rx=$rx_bytes prev_tx=$tx_bytes
+else
+    prev_time=$now
+    prev_rx=$rx_bytes
+    prev_tx=$tx_bytes
+fi
+
+# Save current state
+echo "$now $rx_bytes $tx_bytes $iface" > "$STATE_FILE"
+
+# Calculate speeds
+time_delta_ns=$((now - prev_time))
+if [ "$time_delta_ns" -gt 0 ]; then
+    rx_delta=$((rx_bytes - prev_rx))
+    tx_delta=$((tx_bytes - prev_tx))
+    rx_speed=$(awk "BEGIN {printf \"%.0f\", $rx_delta * 1000000000 / $time_delta_ns}")
+    tx_speed=$(awk "BEGIN {printf \"%.0f\", $tx_delta * 1000000000 / $time_delta_ns}")
+else
+    rx_speed=0
+    tx_speed=0
+fi
+
+# Format speed (compact)
+format_speed() {
+    local bytes=$1
+    if [ "$bytes" -ge 1048576 ]; then
+        awk "BEGIN {printf \"%.1fM\", $bytes/1048576}"
+    elif [ "$bytes" -ge 1024 ]; then
+        awk "BEGIN {printf \"%.0fK\", $bytes/1024}"
+    else
+        awk "BEGIN {printf \"%.0fB\", $bytes}"
+    fi
+}
+
+rx_fmt=$(format_speed "$rx_speed")
+tx_fmt=$(format_speed "$tx_speed")
+
+# Format total transferred
+format_total() {
+    local bytes=$1
+    if [ "$bytes" -ge 1073741824 ]; then
+        awk "BEGIN {printf \"%.2f GB\", $bytes/1073741824}"
+    elif [ "$bytes" -ge 1048576 ]; then
+        awk "BEGIN {printf \"%.1f MB\", $bytes/1048576}"
+    else
+        awk "BEGIN {printf \"%.0f KB\", $bytes/1024}"
+    fi
+}
+
+rx_total=$(format_total "$rx_bytes")
+tx_total=$(format_total "$tx_bytes")
+
+# Bar text: ↓ 1.2M ↑ 500K
+text="󰇚 ${rx_fmt} 󰕒 ${tx_fmt}"
+
+# Tooltip with more details
+tooltip="<span color='$white'><b>Traffic Monitor</b></span> <span color='$gray'>($iface)</span>"
+tooltip="$tooltip\n"
+tooltip="$tooltip\n<span color='$down_color'>󰇚 Download:</span> <span color='$white'>$rx_fmt/s</span>"
+tooltip="$tooltip\n<span color='$up_color'>󰕒 Upload:</span>   <span color='$white'>$tx_fmt/s</span>"
+tooltip="$tooltip\n"
+tooltip="$tooltip\n<span color='$gray'>Total ↓:</span> <span color='$white'>$rx_total</span>"
+tooltip="$tooltip\n<span color='$gray'>Total ↑:</span> <span color='$white'>$tx_total</span>"
+
+echo "{\"text\": \"$text\", \"tooltip\": \"$tooltip\"}"

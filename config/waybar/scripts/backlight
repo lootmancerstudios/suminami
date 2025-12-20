@@ -1,0 +1,78 @@
+#!/bin/bash
+# Backlight widget with styled tooltip
+
+# Source theme colors
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/colors.sh" 2>/dev/null || {
+    COLOR_ACCENT="#D27E99"
+    COLOR_FG="#DCD7BA"
+    COLOR_MUTED="#727169"
+    COLOR_AUDIO="#7FB4CA"
+    COLOR_HIGHLIGHT="#7FB4CA"
+    COLOR_WARNING="#E6C384"
+}
+
+# Theme colors
+accent="$COLOR_ACCENT"
+blue="$COLOR_AUDIO"
+highlight="$COLOR_HIGHLIGHT"
+gray="$COLOR_MUTED"
+white="$COLOR_FG"
+yellow="$COLOR_WARNING"
+
+# Get display backlight
+if ! command -v brightnessctl &>/dev/null; then
+    echo '{"text": "", "tooltip": "", "class": "none"}'
+    exit 0
+fi
+
+# Get display brightness
+display=$(brightnessctl -l 2>/dev/null | grep -E "backlight|video" | head -1 | awk -F"'" '{print $2}')
+if [ -z "$display" ]; then
+    echo '{"text": "", "tooltip": "", "class": "none"}'
+    exit 0
+fi
+
+brightness=$(brightnessctl -d "$display" get 2>/dev/null)
+max=$(brightnessctl -d "$display" max 2>/dev/null)
+
+if [ -z "$brightness" ] || [ -z "$max" ] || [ "$max" -eq 0 ]; then
+    echo '{"text": "", "tooltip": "", "class": "none"}'
+    exit 0
+fi
+
+pct=$((100 * brightness / max))
+
+# Icon based on brightness
+if [ "$pct" -ge 75 ]; then
+    icon="󰃠"
+elif [ "$pct" -ge 50 ]; then
+    icon="󰃟"
+elif [ "$pct" -ge 25 ]; then
+    icon="󰃞"
+else
+    icon="󰃝"
+fi
+
+# Build tooltip
+tooltip="<span color='$accent'><b>Display Brightness</b></span>"
+tooltip="$tooltip\n<span color='$white'>${pct}%</span>"
+tooltip="$tooltip\n"
+tooltip="$tooltip\n<span color='$gray'>Device:</span> <span color='$highlight'>$display</span>"
+tooltip="$tooltip\n<span color='$gray'>Scroll to adjust</span>"
+
+# Check for keyboard backlight (look for kbd_backlight specifically)
+kbd=$(brightnessctl -l 2>/dev/null | grep "kbd_backlight" | awk -F"'" '{print $2}')
+if [ -n "$kbd" ]; then
+    kbd_brightness=$(brightnessctl -d "$kbd" get 2>/dev/null || echo 0)
+    kbd_max=$(brightnessctl -d "$kbd" max 2>/dev/null || echo 1)
+    if [ "$kbd_max" -gt 0 ]; then
+        kbd_pct=$((100 * kbd_brightness / kbd_max))
+        tooltip="$tooltip\n"
+        tooltip="$tooltip\n<span color='$accent'><b>Keyboard Backlight</b></span>"
+        tooltip="$tooltip\n<span color='$white'>${kbd_pct}%</span>"
+        tooltip="$tooltip\n<span color='$gray'>Scroll left/right to adjust</span>"
+    fi
+fi
+
+echo "{\"text\": \"$icon ${pct}%\", \"tooltip\": \"$tooltip\", \"class\": \"backlight\"}"

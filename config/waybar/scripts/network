@@ -1,0 +1,200 @@
+#!/bin/bash
+# Network info with bandwidth, signal, and rich tooltip
+
+# Source theme colors
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/colors.sh" 2>/dev/null || {
+    COLOR_ACCENT="#D27E99"
+    COLOR_FG="#DCD7BA"
+    COLOR_MUTED="#727169"
+    COLOR_SYSTEM="#98BB6C"
+    COLOR_AUDIO="#7FB4CA"
+    COLOR_HIGHLIGHT="#7FB4CA"
+    COLOR_NETWORK="#957FB8"
+    COLOR_WARNING="#E6C384"
+    COLOR_CRITICAL="#E46876"
+}
+
+STATE_FILE="/tmp/waybar-network-state"
+
+# Theme colors
+accent="$COLOR_ACCENT"
+blue="$COLOR_AUDIO"
+highlight="$COLOR_HIGHLIGHT"
+gray="$COLOR_MUTED"
+white="$COLOR_FG"
+green="$COLOR_SYSTEM"
+yellow="$COLOR_WARNING"
+red="$COLOR_CRITICAL"
+violet="$COLOR_NETWORK"
+
+# Find active interface (prefer non-loopback default route)
+iface=$(ip route | awk '/default/ && !/linkdown/ {print $5; exit}')
+
+if [ -z "$iface" ]; then
+    echo "{\"text\": \"󰖪\", \"class\": \"disconnected\", \"tooltip\": \"<span color='$gray'>No connection</span>\"}"
+    exit 0
+fi
+
+# Check if wireless
+is_wifi=false
+[ -d "/sys/class/net/$iface/wireless" ] && is_wifi=true
+
+# Get IP address
+ip_addr=$(ip -4 addr show "$iface" 2>/dev/null | awk '/inet / {print $2; exit}' | cut -d/ -f1)
+[ -z "$ip_addr" ] && ip_addr="No IP"
+
+# Get gateway
+gateway=$(ip route | awk '/default/ {print $3; exit}')
+
+# Get MAC
+mac=$(cat "/sys/class/net/$iface/address" 2>/dev/null)
+
+# Get current bytes
+rx_bytes=$(cat "/sys/class/net/$iface/statistics/rx_bytes" 2>/dev/null || echo 0)
+tx_bytes=$(cat "/sys/class/net/$iface/statistics/tx_bytes" 2>/dev/null || echo 0)
+now=$(date +%s%N)  # nanoseconds for precision
+
+# Read previous state
+if [ -f "$STATE_FILE" ]; then
+    read -r prev_time prev_rx prev_tx prev_iface < "$STATE_FILE"
+    # Reset if interface changed
+    [ "$prev_iface" != "$iface" ] && prev_time=$now prev_rx=$rx_bytes prev_tx=$tx_bytes
+else
+    prev_time=$now
+    prev_rx=$rx_bytes
+    prev_tx=$tx_bytes
+fi
+
+# Save current state
+echo "$now $rx_bytes $tx_bytes $iface" > "$STATE_FILE"
+
+# Calculate speeds (bytes per second)
+time_delta_ns=$((now - prev_time))
+if [ "$time_delta_ns" -gt 0 ]; then
+    # Convert to bytes/sec (delta_bytes * 1e9 / delta_ns)
+    rx_delta=$((rx_bytes - prev_rx))
+    tx_delta=$((tx_bytes - prev_tx))
+    rx_speed=$(awk "BEGIN {printf \"%.0f\", $rx_delta * 1000000000 / $time_delta_ns}")
+    tx_speed=$(awk "BEGIN {printf \"%.0f\", $tx_delta * 1000000000 / $time_delta_ns}")
+else
+    rx_speed=0
+    tx_speed=0
+fi
+
+# Format speed
+format_speed() {
+    local bytes=$1
+    if [ "$bytes" -ge 1048576 ]; then
+        awk "BEGIN {printf \"%.1f MB/s\", $bytes/1048576}"
+    elif [ "$bytes" -ge 1024 ]; then
+        awk "BEGIN {printf \"%.0f KB/s\", $bytes/1024}"
+    else
+        awk "BEGIN {printf \"%.0f B/s\", $bytes}"
+    fi
+}
+
+rx_fmt=$(format_speed "$rx_speed")
+tx_fmt=$(format_speed "$tx_speed")
+
+# Format total transferred
+format_total() {
+    local bytes=$1
+    if [ "$bytes" -ge 1073741824 ]; then
+        awk "BEGIN {printf \"%.2f GB\", $bytes/1073741824}"
+    elif [ "$bytes" -ge 1048576 ]; then
+        awk "BEGIN {printf \"%.1f MB\", $bytes/1048576}"
+    else
+        awk "BEGIN {printf \"%.0f KB\", $bytes/1024}"
+    fi
+}
+
+rx_total=$(format_total "$rx_bytes")
+tx_total=$(format_total "$tx_bytes")
+
+# Build output based on connection type
+if $is_wifi; then
+    # Get SSID (try multiple methods for compatibility)
+    # 1. iwgetid (wireless-tools, common)
+    ssid=$(iwgetid -r 2>/dev/null)
+    # 2. iw dev (iproute2, works with iwd)
+    [ -z "$ssid" ] && ssid=$(iw dev "$iface" link 2>/dev/null | sed -n 's/^[[:space:]]*SSID: //p')
+    # 3. iwctl (iwd native)
+    [ -z "$ssid" ] && ssid=$(iwctl station "$iface" show 2>/dev/null | grep "Connected network" | sed 's/.*Connected network[[:space:]]*//')
+    # 4. nmcli (NetworkManager)
+    [ -z "$ssid" ] && ssid=$(nmcli -t -f active,ssid dev wifi 2>/dev/null | awk -F: '/^yes/ {print $2}')
+    [ -z "$ssid" ] && ssid="Unknown"
+
+    # Get signal strength (0-100) - try multiple methods
+    # 1. /proc/net/wireless (most reliable when available)
+    signal=$(awk '/'"$iface"'/ {print int($3 * 100 / 70)}' /proc/net/wireless 2>/dev/null)
+    # 2. iw dev (works with iwd)
+    [ -z "$signal" ] && signal=$(iw dev "$iface" link 2>/dev/null | awk '/signal:/ {print int(($2 + 100) * 2)}')
+    # 3. nmcli
+    [ -z "$signal" ] && signal=$(nmcli -t -f active,signal dev wifi 2>/dev/null | awk -F: '/^yes/ {print $2}')
+    [ -z "$signal" ] && signal=0
+    [ "$signal" -gt 100 ] && signal=100
+    [ "$signal" -lt 0 ] && signal=0
+
+    # Signal color
+    signal_color="$green"
+    [ "$signal" -lt 60 ] && signal_color="$yellow"
+    [ "$signal" -lt 30 ] && signal_color="$red"
+
+    # Signal bar (▂▄▆█)
+    if [ "$signal" -ge 80 ]; then
+        signal_bar="▂▄▆█"
+    elif [ "$signal" -ge 60 ]; then
+        signal_bar="▂▄▆<span color='$gray'>█</span>"
+    elif [ "$signal" -ge 40 ]; then
+        signal_bar="▂▄<span color='$gray'>▆█</span>"
+    elif [ "$signal" -ge 20 ]; then
+        signal_bar="▂<span color='$gray'>▄▆█</span>"
+    else
+        signal_bar="<span color='$gray'>▂▄▆█</span>"
+    fi
+
+    # Get frequency/channel (try multiple methods)
+    freq=$(iwgetid -f 2>/dev/null | awk -F: '{gsub(/ /,"",$2); print $2}')
+    [ -z "$freq" ] && freq=$(iw dev "$iface" link 2>/dev/null | awk '/freq:/ {print $2/1000 "GHz"}')
+
+    # Bar text
+    text="󰖩 $ssid"
+
+    # Tooltip
+    tooltip="<span color='$accent'><b>$ssid</b></span>"
+    tooltip="$tooltip\n<span color='$signal_color'>$signal_bar</span> <span color='$signal_color'>${signal}%</span>"
+    [ -n "$freq" ] && tooltip="$tooltip <span color='$gray'>($freq)</span>"
+    tooltip="$tooltip\n"
+    tooltip="$tooltip\n<span color='$gray'>IP:</span>      <span color='$white'>$ip_addr</span>"
+    tooltip="$tooltip\n<span color='$gray'>Gateway:</span> <span color='$white'>$gateway</span>"
+    tooltip="$tooltip\n<span color='$gray'>Interface:</span> <span color='$white'>$iface</span>"
+    tooltip="$tooltip\n"
+    tooltip="$tooltip\n<span color='$green'>󰇚 $rx_fmt</span>  <span color='$highlight'>󰕒 $tx_fmt</span>"
+    tooltip="$tooltip\n<span color='$gray'>↓ $rx_total  ↑ $tx_total</span>"
+
+    # Class based on signal
+    class=""
+    [ "$signal" -lt 30 ] && class="weak"
+
+else
+    # Ethernet
+    # Get link speed
+    speed=$(cat "/sys/class/net/$iface/speed" 2>/dev/null)
+    [ -n "$speed" ] && [ "$speed" -gt 0 ] && speed_str="${speed} Mbps" || speed_str="Unknown"
+
+    text="󰈀"
+
+    tooltip="<span color='$accent'><b>Ethernet</b></span> <span color='$gray'>($iface)</span>"
+    tooltip="$tooltip\n<span color='$gray'>Speed:</span> <span color='$white'>$speed_str</span>"
+    tooltip="$tooltip\n"
+    tooltip="$tooltip\n<span color='$gray'>IP:</span>      <span color='$white'>$ip_addr</span>"
+    tooltip="$tooltip\n<span color='$gray'>Gateway:</span> <span color='$white'>$gateway</span>"
+    tooltip="$tooltip\n"
+    tooltip="$tooltip\n<span color='$green'>󰇚 $rx_fmt</span>  <span color='$highlight'>󰕒 $tx_fmt</span>"
+    tooltip="$tooltip\n<span color='$gray'>↓ $rx_total  ↑ $tx_total</span>"
+
+    class=""
+fi
+
+echo "{\"text\": \"$text\", \"class\": \"$class\", \"tooltip\": \"$tooltip\"}"

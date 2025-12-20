@@ -1,0 +1,14 @@
+#!/bin/bash
+# Application launcher - reads command from suminami.conf
+
+CONFIG_FILE="$HOME/.config/waybar/suminami.conf"
+
+# Get launcher command from config, default to wofi
+launcher_cmd="wofi --show drun"
+if [ -f "$CONFIG_FILE" ]; then
+    configured=$(grep "^launcher_command=" "$CONFIG_FILE" | cut -d'=' -f2-)
+    [ -n "$configured" ] && launcher_cmd="$configured"
+fi
+
+# Execute the launcher
+exec $launcher_cmd

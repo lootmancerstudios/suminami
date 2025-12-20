@@ -1,0 +1,50 @@
+/* Catppuccin Latte - https://github.com/catppuccin/catppuccin */
+/* Light variant with warm, soft tones */
+
+/* Background shades (light) */
+@define-color sumiInk0 #e6e9ef;
+@define-color sumiInk1 #eff1f5;
+@define-color sumiInk2 #eff1f5;
+@define-color sumiInk3 #dce0e8;
+@define-color sumiInk4 #ccd0da;
+@define-color sumiInk5 #bcc0cc;
+@define-color sumiInk6 #9ca0b0;
+
+/* Foreground (dark text) */
+@define-color fujiWhite #4c4f69;
+@define-color fujiGray #8c8fa1;
+@define-color oldWhite #5c5f77;
+
+/* Accent colors */
+@define-color sakuraPink #ea76cb;
+@define-color oniViolet #8839ef;
+@define-color crystalBlue #1e66f5;
+@define-color springBlue #04a5e5;
+@define-color lightBlue #209fb5;
+
+/* Semantic colors */
+@define-color springGreen #40a02b;
+@define-color carpYellow #df8e1d;
+@define-color waveRed #d20f39;
+@define-color peachRed #e64553;
+@define-color surimiOrange #fe640b;
+
+/* Extra */
+@define-color waveAqua #179299;
+@define-color katanaGray #7c7f93;
+@define-color dragonBlue #04a5e5;
+
+/* Semantic module colors (light theme - WCAG AA compliant, 4.5:1 min contrast) */
+/* All colors darkened to meet accessibility standards on #eff1f5 background */
+@define-color module-clock #8c4a5e;
+@define-color module-launcher #8c4a5e;
+@define-color module-workspace-active #7237b4;
+@define-color module-system #2c6e1a;
+@define-color module-media #2c6e1a;
+@define-color module-weather #1456c5;
+@define-color module-network #7237b4;
+@define-color module-audio #147085;
+@define-color module-bluetooth #147085;
+@define-color module-muted #5c5f77;
+@define-color state-warning #9a5f00;
+@define-color state-critical #a50d2d;

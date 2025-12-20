@@ -1,0 +1,4 @@
+#!/bin/bash
+# Increase volume by 1%, cap at 150%
+current=$(pactl get-sink-volume @DEFAULT_SINK@ | grep -oP '\d+(?=%)' | head -1)
+[ "$current" -lt 150 ] && pactl set-sink-volume @DEFAULT_SINK@ +1%

@@ -1,0 +1,182 @@
+#!/bin/bash
+# Power profile widget with multi-backend support
+# Supports: power-profiles-daemon (interactive), TLP/auto-cpufreq (display only)
+# Falls back gracefully if nothing is installed
+
+# Source theme colors
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/colors.sh" 2>/dev/null || {
+    COLOR_ACCENT="#D27E99"
+    COLOR_FG="#DCD7BA"
+    COLOR_MUTED="#727169"
+    COLOR_AUDIO="#7FB4CA"
+    COLOR_SYSTEM="#98BB6C"
+    COLOR_NETWORK="#957FB8"
+    COLOR_WARNING="#E6C384"
+    COLOR_CRITICAL="#E46876"
+}
+
+# Theme colors
+pink="$COLOR_ACCENT"
+blue="$COLOR_AUDIO"
+gray="$COLOR_MUTED"
+white="$COLOR_FG"
+green="$COLOR_SYSTEM"
+yellow="$COLOR_WARNING"
+red="$COLOR_CRITICAL"
+violet="$COLOR_NETWORK"
+
+# Detect which power management tool is available
+# Returns: backend:interactive (1=can cycle, 0=display only)
+detect_backend() {
+    # power-profiles-daemon (modern standard - works without sudo)
+    if command -v powerprofilesctl &>/dev/null && systemctl is-active power-profiles-daemon &>/dev/null 2>/dev/null; then
+        echo "ppd:1"
+        return
+    fi
+
+    # TLP (popular for laptops) - display only, auto-manages based on AC/battery
+    if command -v tlp &>/dev/null && systemctl is-active tlp &>/dev/null 2>/dev/null; then
+        echo "tlp:0"
+        return
+    fi
+
+    # auto-cpufreq - display only, fully automatic
+    if command -v auto-cpufreq &>/dev/null && systemctl is-active auto-cpufreq &>/dev/null 2>/dev/null; then
+        echo "autocpufreq:0"
+        return
+    fi
+
+    echo "none:0"
+}
+
+# Get current profile based on backend
+get_profile() {
+    local backend="$1"
+
+    case "$backend" in
+        ppd)
+            powerprofilesctl get 2>/dev/null
+            ;;
+        tlp)
+            # TLP mode based on power source
+            local mode=$(tlp-stat -s 2>/dev/null | grep "^Mode" | awk '{print $3}')
+            case "$mode" in
+                AC) echo "performance" ;;
+                battery) echo "power-saver" ;;
+                *) echo "balanced" ;;
+            esac
+            ;;
+        autocpufreq)
+            echo "auto"
+            ;;
+        *)
+            echo "none"
+            ;;
+    esac
+}
+
+# Map profile to display name and icon
+profile_display() {
+    local profile="$1"
+    local icon text color
+
+    case "$profile" in
+        power-saver|powersave|battery|conservative)
+            icon="󰌪"
+            text="Power Saver"
+            color="$green"
+            ;;
+        balanced|schedutil|ondemand|auto)
+            icon="󰗑"
+            text="Balanced"
+            color="$blue"
+            ;;
+        performance|throughput-performance|AC)
+            icon="󱐋"
+            text="Performance"
+            color="$yellow"
+            ;;
+        *)
+            icon="󰾅"
+            text="$profile"
+            color="$gray"
+            ;;
+    esac
+
+    echo "$icon|$text|$color"
+}
+
+# Cycle to next profile (only for power-profiles-daemon)
+cycle_profile() {
+    local current="$1"
+    case "$current" in
+        power-saver) powerprofilesctl set balanced ;;
+        balanced) powerprofilesctl set performance ;;
+        performance) powerprofilesctl set power-saver ;;
+        *) powerprofilesctl set balanced ;;
+    esac
+}
+
+# Handle click action
+if [ "$1" = "cycle" ]; then
+    IFS=':' read -r backend interactive <<< "$(detect_backend)"
+    [ "$interactive" != "1" ] && exit 0
+    current=$(get_profile "$backend")
+    cycle_profile "$current"
+    exit 0
+fi
+
+# Main output
+IFS=':' read -r backend interactive <<< "$(detect_backend)"
+
+# Only show module for interactive backends (power-profiles-daemon)
+# Read-only backends (TLP, auto-cpufreq) are shown in temp tooltip instead
+if [ "$backend" = "none" ] || [ "$interactive" != "1" ]; then
+    echo '{"text": "", "tooltip": "", "class": "none"}'
+    exit 0
+fi
+
+current=$(get_profile "$backend")
+IFS='|' read -r icon text color <<< "$(profile_display "$current")"
+
+# Build tooltip
+tooltip="<span color='$pink'><b>Power Profile</b></span>"
+tooltip="$tooltip\n<span color='$gray'>Current:</span> <span color='$color'>$text</span>"
+tooltip="$tooltip\n"
+
+# Backend info
+case "$backend" in
+    ppd)
+        tooltip="$tooltip\n<span color='$gray'>Manager:</span> <span color='$white'>power-profiles-daemon</span>"
+        tooltip="$tooltip\n"
+        tooltip="$tooltip\n<span color='$pink'><b>Available</b></span>"
+        for p in power-saver balanced performance; do
+            IFS='|' read -r picon ptext pcolor <<< "$(profile_display "$p")"
+            if [ "$p" = "$current" ]; then
+                tooltip="$tooltip\n<span color='$gray'>•</span> <span color='$pcolor'><b>$ptext</b></span>"
+            else
+                tooltip="$tooltip\n<span color='$gray'>•</span> <span color='$gray'>$ptext</span>"
+            fi
+        done
+        tooltip="$tooltip\n"
+        tooltip="$tooltip\n<span color='$gray'>Click to cycle profiles</span>"
+        ;;
+    tlp)
+        tooltip="$tooltip\n<span color='$gray'>Manager:</span> <span color='$white'>TLP</span>"
+        tooltip="$tooltip\n<span color='$gray'>Auto-switches based on AC/battery</span>"
+        ;;
+    autocpufreq)
+        tooltip="$tooltip\n<span color='$gray'>Manager:</span> <span color='$white'>auto-cpufreq</span>"
+        tooltip="$tooltip\n<span color='$gray'>Automatic CPU frequency scaling</span>"
+        ;;
+esac
+
+# Determine class for styling
+class="balanced"
+case "$current" in
+    power-saver|powersave|battery|conservative) class="power-saver" ;;
+    performance|throughput-performance|AC) class="performance" ;;
+esac
+
+echo "{\"text\": \"$icon\", \"tooltip\": \"$tooltip\", \"class\": \"$class\"}"

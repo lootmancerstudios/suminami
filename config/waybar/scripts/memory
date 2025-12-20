@@ -1,0 +1,120 @@
+#!/bin/bash
+# Memory usage with dynamic coloring and rich tooltip
+
+# Source theme colors
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/colors.sh" 2>/dev/null || {
+    COLOR_ACCENT="#D27E99"
+    COLOR_FG="#DCD7BA"
+    COLOR_MUTED="#727169"
+    COLOR_SYSTEM="#98BB6C"
+    COLOR_AUDIO="#7FB4CA"
+    COLOR_HIGHLIGHT="#7FB4CA"
+    COLOR_NETWORK="#957FB8"
+    COLOR_WARNING="#E6C384"
+    COLOR_CRITICAL="#E46876"
+}
+
+# Read memory info
+while IFS=: read -r key value; do
+    # Remove " kB" suffix and leading spaces
+    value=${value% kB}
+    value=${value# }
+    case "$key" in
+        MemTotal) mem_total=$value ;;
+        MemFree) mem_free=$value ;;
+        MemAvailable) mem_available=$value ;;
+        Buffers) buffers=$value ;;
+        Cached) cached=$value ;;
+        SwapTotal) swap_total=$value ;;
+        SwapFree) swap_free=$value ;;
+    esac
+done < /proc/meminfo
+
+# Calculate usage (using MemAvailable for accurate "usable" memory)
+mem_used=$((mem_total - mem_available))
+usage=$((100 * mem_used / mem_total))
+
+# Swap
+if [ "$swap_total" -gt 0 ]; then
+    swap_used=$((swap_total - swap_free))
+    swap_pct=$((100 * swap_used / swap_total))
+else
+    swap_used=0
+    swap_pct=0
+fi
+
+# Convert KB to human readable (GB with 1 decimal)
+to_human() {
+    local kb=$1
+    if [ "$kb" -ge 1048576 ]; then
+        awk "BEGIN {printf \"%.1f GB\", $kb/1048576}"
+    elif [ "$kb" -ge 1024 ]; then
+        awk "BEGIN {printf \"%.0f MB\", $kb/1024}"
+    else
+        echo "${kb} KB"
+    fi
+}
+
+mem_used_h=$(to_human $mem_used)
+mem_total_h=$(to_human $mem_total)
+mem_available_h=$(to_human $mem_available)
+buffers_h=$(to_human $buffers)
+cached_h=$(to_human $cached)
+swap_used_h=$(to_human $swap_used)
+swap_total_h=$(to_human $swap_total)
+
+# Determine class
+class=""
+[ "$usage" -ge 60 ] && class="warning"
+[ "$usage" -ge 85 ] && class="critical"
+
+# Theme colors (from colors.sh)
+accent="$COLOR_ACCENT"
+blue="$COLOR_AUDIO"
+highlight="$COLOR_HIGHLIGHT"
+gray="$COLOR_MUTED"
+white="$COLOR_FG"
+green="$COLOR_SYSTEM"
+yellow="$COLOR_WARNING"
+red="$COLOR_CRITICAL"
+violet="$COLOR_NETWORK"
+
+# Color based on usage
+usage_color="$green"
+[ "$usage" -ge 60 ] && usage_color="$yellow"
+[ "$usage" -ge 85 ] && usage_color="$red"
+
+# Swap color
+swap_color="$green"
+[ "$swap_pct" -ge 50 ] && swap_color="$yellow"
+[ "$swap_pct" -ge 80 ] && swap_color="$red"
+
+# Build tooltip
+tooltip="<span color='$accent'><b>Memory</b></span>"
+tooltip="$tooltip\n<span color='$gray'>Used:</span>      <span color='$usage_color'>$mem_used_h</span> <span color='$gray'>/ $mem_total_h (${usage}%)</span>"
+tooltip="$tooltip\n<span color='$gray'>Available:</span> <span color='$white'>$mem_available_h</span>"
+tooltip="$tooltip\n"
+tooltip="$tooltip\n<span color='$gray'>Buffers:</span>   <span color='$highlight'>$buffers_h</span>"
+tooltip="$tooltip\n<span color='$gray'>Cached:</span>    <span color='$highlight'>$cached_h</span>"
+
+# Swap section (only if swap exists)
+if [ "$swap_total" -gt 0 ]; then
+    tooltip="$tooltip\n"
+    tooltip="$tooltip\n<span color='$violet'><b>Swap</b></span>"
+    tooltip="$tooltip\n<span color='$gray'>Used:</span> <span color='$swap_color'>$swap_used_h</span> <span color='$gray'>/ $swap_total_h (${swap_pct}%)</span>"
+fi
+
+# Top 5 memory processes
+tooltip="$tooltip\n"
+tooltip="$tooltip\n<span color='$accent'><b>Top Processes</b></span>"
+while IFS= read -r line; do
+    # Memory % is last field, process name is everything before it
+    pmem=$(echo "$line" | awk '{print $NF}')
+    pname=$(echo "$line" | awk '{$NF=""; sub(/[[:space:]]+$/, ""); print}')
+    # Indicate truncation if name is exactly 15 chars (kernel TASK_COMM_LEN limit)
+    [ ${#pname} -eq 15 ] && pname="${pname}…"
+    tooltip="$tooltip\n<span color='$gray'>•</span> <span color='$gray'>$pname</span> <span color='$white'>${pmem}%</span>"
+done < <(ps -eo comm,%mem --sort=-%mem | awk 'NR>1 && NR<=6')
+
+echo "{\"text\": \"󰘚 ${usage}%\", \"class\": \"$class\", \"tooltip\": \"$tooltip\"}"

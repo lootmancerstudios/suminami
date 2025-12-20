@@ -1,0 +1,49 @@
+/* Kanagawa Dragon - https://github.com/rebelot/kanagawa.nvim */
+/* Darker variant with warmer, more muted tones */
+
+/* Background shades (dragonBlack series - warmer blacks) */
+@define-color sumiInk0 #0d0c0c;
+@define-color sumiInk1 #12120f;
+@define-color sumiInk2 #1D1C19;
+@define-color sumiInk3 #181616;
+@define-color sumiInk4 #282727;
+@define-color sumiInk5 #393836;
+@define-color sumiInk6 #625e5a;
+
+/* Foreground */
+@define-color fujiWhite #c5c9c5;
+@define-color fujiGray #a6a69c;
+@define-color oldWhite #C8C093;
+
+/* Accent colors (muted, earthy) */
+@define-color sakuraPink #a292a3;
+@define-color oniViolet #8992a7;
+@define-color crystalBlue #8ba4b0;
+@define-color springBlue #8ea4a2;
+@define-color lightBlue #949fb5;
+
+/* Semantic colors */
+@define-color springGreen #87a987;
+@define-color carpYellow #c4b28a;
+@define-color waveRed #c4746e;
+@define-color peachRed #c4746e;
+@define-color surimiOrange #b6927b;
+
+/* Extra */
+@define-color waveAqua #8ea4a2;
+@define-color katanaGray #7a8382;
+@define-color dragonBlue #8ba4b0;
+
+/* Semantic module colors (dark theme - warm earth/fire tones) */
+@define-color module-clock #c4746e;
+@define-color module-launcher #c4746e;
+@define-color module-workspace-active #c4746e;
+@define-color module-system #b6927b;
+@define-color module-media #b6927b;
+@define-color module-weather #8ba4b0;
+@define-color module-network #a292a3;
+@define-color module-audio #8ea4a2;
+@define-color module-bluetooth #8ea4a2;
+@define-color module-muted #625e5a;
+@define-color state-warning #c4b28a;
+@define-color state-critical #c34043;

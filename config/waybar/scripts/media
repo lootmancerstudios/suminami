@@ -1,0 +1,120 @@
+#!/bin/bash
+# Media player widget with resolution-aware display
+# - < 1600px: icon only
+# - 1600-1919px: icon + track (truncated)
+# - >= 1920px: icon + artist - track
+
+# Source theme colors
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/colors.sh" 2>/dev/null || {
+    COLOR_ACCENT="#D27E99"
+    COLOR_FG="#DCD7BA"
+    COLOR_MUTED="#727169"
+    COLOR_AUDIO="#7FB4CA"
+    COLOR_SYSTEM="#98BB6C"
+    COLOR_NETWORK="#957FB8"
+}
+
+# Theme colors
+pink="$COLOR_ACCENT"
+blue="$COLOR_AUDIO"
+gray="$COLOR_MUTED"
+white="$COLOR_FG"
+green="$COLOR_SYSTEM"
+violet="$COLOR_NETWORK"
+
+# Check if playerctl exists
+if ! command -v playerctl &>/dev/null; then
+    echo '{"text": "", "tooltip": "", "class": "none"}'
+    exit 0
+fi
+
+# Get player status
+status=$(playerctl status 2>/dev/null)
+
+# Nothing playing or no player
+if [ -z "$status" ] || [ "$status" = "Stopped" ]; then
+    echo '{"text": "", "tooltip": "", "class": "none"}'
+    exit 0
+fi
+
+# Get metadata
+title=$(playerctl metadata title 2>/dev/null)
+artist=$(playerctl metadata artist 2>/dev/null)
+album=$(playerctl metadata album 2>/dev/null)
+player=$(playerctl metadata --format '{{playerName}}' 2>/dev/null)
+
+# If no title, nothing useful to show
+if [ -z "$title" ]; then
+    echo '{"text": "", "tooltip": "", "class": "none"}'
+    exit 0
+fi
+
+# Get screen width from Hyprland
+width=$(hyprctl monitors -j 2>/dev/null | grep -oP '"width":\s*\K\d+' | head -1)
+[ -z "$width" ] && width=1920  # fallback
+
+# Icon based on status
+if [ "$status" = "Playing" ]; then
+    icon="󰐊"
+    class="playing"
+else
+    icon="󰏤"
+    class="paused"
+fi
+
+# Truncate function
+truncate() {
+    local str="$1"
+    local max="$2"
+    if [ ${#str} -gt $max ]; then
+        echo "${str:0:$((max-3))}..."
+    else
+        echo "$str"
+    fi
+}
+
+# Build display text based on resolution
+if [ "$width" -lt 1600 ]; then
+    # Icon only
+    text="$icon"
+elif [ "$width" -lt 1920 ]; then
+    # Icon + truncated track
+    track_short=$(truncate "$title" 20)
+    text="$icon $track_short"
+else
+    # Icon + artist - track
+    if [ -n "$artist" ]; then
+        combined="$artist - $title"
+    else
+        combined="$title"
+    fi
+    display=$(truncate "$combined" 40)
+    text="$icon $display"
+fi
+
+# Build tooltip
+tooltip="<span color='$pink'><b>$title</b></span>"
+[ -n "$artist" ] && tooltip="$tooltip\n<span color='$white'>$artist</span>"
+[ -n "$album" ] && tooltip="$tooltip\n<span color='$gray'>$album</span>"
+tooltip="$tooltip\n"
+
+# Progress if available
+position=$(playerctl position 2>/dev/null | cut -d. -f1)
+duration=$(playerctl metadata mpris:length 2>/dev/null)
+if [ -n "$position" ] && [ -n "$duration" ] && [ "$duration" -gt 0 ]; then
+    duration_sec=$((duration / 1000000))
+    pos_min=$((position / 60))
+    pos_sec=$((position % 60))
+    dur_min=$((duration_sec / 60))
+    dur_sec=$((duration_sec % 60))
+    tooltip="$tooltip\n<span color='$blue'>$(printf "%d:%02d" $pos_min $pos_sec) / $(printf "%d:%02d" $dur_min $dur_sec)</span>"
+fi
+
+# Player name
+[ -n "$player" ] && tooltip="$tooltip\n<span color='$gray'>$player</span>"
+
+tooltip="$tooltip\n"
+tooltip="$tooltip\n<span color='$gray'>Click: play/pause • Scroll: prev/next</span>"
+
+echo "{\"text\": \"$text\", \"tooltip\": \"$tooltip\", \"class\": \"$class\"}"

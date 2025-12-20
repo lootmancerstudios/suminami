@@ -1,0 +1,49 @@
+/* Kanagawa Blossom - Cherry blossom inspired variant */
+/* Dark theme with soft pink and pastel accents */
+
+/* Background shades (same as Wave - deep ink) */
+@define-color sumiInk0 #16161D;
+@define-color sumiInk1 #181820;
+@define-color sumiInk2 #1a1a22;
+@define-color sumiInk3 #1F1F28;
+@define-color sumiInk4 #2A2A37;
+@define-color sumiInk5 #363646;
+@define-color sumiInk6 #54546D;
+
+/* Foreground (soft, warm white) */
+@define-color fujiWhite #E8E3D3;
+@define-color fujiGray #8A8598;
+@define-color oldWhite #D4CFC4;
+
+/* Accent colors (cherry blossom pinks and pastels) */
+@define-color sakuraPink #F4A7B9;
+@define-color oniViolet #B8A9C9;
+@define-color crystalBlue #A8C5DD;
+@define-color springBlue #9AC1D4;
+@define-color lightBlue #B5D5E5;
+
+/* Semantic colors (soft pastels) */
+@define-color springGreen #A8D5A2;
+@define-color carpYellow #F0D9A8;
+@define-color waveRed #E8909C;
+@define-color peachRed #F5A0A8;
+@define-color surimiOrange #F5C5A0;
+
+/* Extra */
+@define-color waveAqua #9DC5BB;
+@define-color katanaGray #7A7A8C;
+@define-color dragonBlue #8FB5C4;
+
+/* Semantic module colors (dark theme - cherry blossom pastels) */
+@define-color module-clock #F4A7B9;
+@define-color module-launcher #A8D5A2;
+@define-color module-workspace-active #A8D5A2;
+@define-color module-system #F5A0A8;
+@define-color module-media #E8A0B5;
+@define-color module-weather #F4A7B9;
+@define-color module-network #F4A7B9;
+@define-color module-audio #F5A0A8;
+@define-color module-bluetooth #E8A0B5;
+@define-color module-muted #8A8598;
+@define-color state-warning #F0D9A8;
+@define-color state-critical #E8909C;

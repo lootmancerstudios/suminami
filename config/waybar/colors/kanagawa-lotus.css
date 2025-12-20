@@ -1,0 +1,50 @@
+/* Kanagawa Lotus - https://github.com/rebelot/kanagawa.nvim */
+/* Light variant with soft, warm tones */
+
+/* Background shades (lotusWhite series - light backgrounds) */
+@define-color sumiInk0 #f2ecbc;
+@define-color sumiInk1 #e7dba0;
+@define-color sumiInk2 #e5ddb0;
+@define-color sumiInk3 #dcd5ac;
+@define-color sumiInk4 #d5cea3;
+@define-color sumiInk5 #c9cbd1;
+@define-color sumiInk6 #8a8980;
+
+/* Foreground (dark text on light bg) */
+@define-color fujiWhite #545464;
+@define-color fujiGray #716e61;
+@define-color oldWhite #43436c;
+
+/* Accent colors */
+@define-color sakuraPink #b35b79;
+@define-color oniViolet #624c83;
+@define-color crystalBlue #4d699b;
+@define-color springBlue #5d57a3;
+@define-color lightBlue #9fb5c9;
+
+/* Semantic colors */
+@define-color springGreen #6f894e;
+@define-color carpYellow #77713f;
+@define-color waveRed #c84053;
+@define-color peachRed #d7474b;
+@define-color surimiOrange #cc6d00;
+
+/* Extra */
+@define-color waveAqua #597b75;
+@define-color katanaGray #8a8980;
+@define-color dragonBlue #4e8ca2;
+
+/* Semantic module colors (light theme - WCAG AA compliant, 4.5:1 min contrast) */
+/* All colors tested against #f2ecbc background */
+@define-color module-clock #8a3d5c;
+@define-color module-launcher #8a3d5c;
+@define-color module-workspace-active #8a3d5c;
+@define-color module-system #3d6030;
+@define-color module-media #3d6030;
+@define-color module-weather #3d5580;
+@define-color module-network #523d70;
+@define-color module-audio #4a4590;
+@define-color module-bluetooth #4a4590;
+@define-color module-muted #5a5850;
+@define-color state-warning #7a5d20;
+@define-color state-critical #a02838;

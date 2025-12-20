@@ -1,0 +1,49 @@
+/* Catppuccin Macchiato - https://github.com/catppuccin/catppuccin */
+/* Dark variant with warm caramel undertones */
+
+/* Background shades (warmed up - caramel macchiato feel) */
+@define-color sumiInk0 #1a1816;
+@define-color sumiInk1 #201e1c;
+@define-color sumiInk2 #282624;
+@define-color sumiInk3 #282624;
+@define-color sumiInk4 #3a3836;
+@define-color sumiInk5 #4e4c4a;
+@define-color sumiInk6 #62605e;
+
+/* Foreground */
+@define-color fujiWhite #cad3f5;
+@define-color fujiGray #6e738d;
+@define-color oldWhite #b8c0e0;
+
+/* Accent colors */
+@define-color sakuraPink #f5bde6;
+@define-color oniViolet #c6a0f6;
+@define-color crystalBlue #8aadf4;
+@define-color springBlue #7dc4e4;
+@define-color lightBlue #91d7e3;
+
+/* Semantic colors */
+@define-color springGreen #a6da95;
+@define-color carpYellow #eed49f;
+@define-color waveRed #ed8796;
+@define-color peachRed #ee99a0;
+@define-color surimiOrange #f5a97f;
+
+/* Extra */
+@define-color waveAqua #8bd5ca;
+@define-color katanaGray #8087a2;
+@define-color dragonBlue #7dc4e4;
+
+/* Semantic module colors (dark theme - warm caramel pastels) */
+@define-color module-clock #f5a97f;
+@define-color module-launcher #f4dbd6;
+@define-color module-workspace-active #f4dbd6;
+@define-color module-system #a6da95;
+@define-color module-media #a6da95;
+@define-color module-weather #f0c6c6;
+@define-color module-network #ee99a0;
+@define-color module-audio #7dc4e4;
+@define-color module-bluetooth #f0c6c6;
+@define-color module-muted #6e738d;
+@define-color state-warning #eed49f;
+@define-color state-critical #ed8796;

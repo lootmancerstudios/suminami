@@ -1,0 +1,49 @@
+/* Catppuccin Mocha - https://github.com/catppuccin/catppuccin */
+/* Darkest variant with rich, vibrant pastels */
+
+/* Background shades (rich mocha/coffee brown) */
+@define-color sumiInk0 #181210;
+@define-color sumiInk1 #1c1614;
+@define-color sumiInk2 #221c1a;
+@define-color sumiInk3 #221c1a;
+@define-color sumiInk4 #342e2c;
+@define-color sumiInk5 #484240;
+@define-color sumiInk6 #5c5654;
+
+/* Foreground */
+@define-color fujiWhite #cdd6f4;
+@define-color fujiGray #6c7086;
+@define-color oldWhite #bac2de;
+
+/* Accent colors */
+@define-color sakuraPink #f5c2e7;
+@define-color oniViolet #cba6f7;
+@define-color crystalBlue #89b4fa;
+@define-color springBlue #74c7ec;
+@define-color lightBlue #89dceb;
+
+/* Semantic colors */
+@define-color springGreen #a6e3a1;
+@define-color carpYellow #f9e2af;
+@define-color waveRed #f38ba8;
+@define-color peachRed #eba0ac;
+@define-color surimiOrange #fab387;
+
+/* Extra */
+@define-color waveAqua #94e2d5;
+@define-color katanaGray #7f849c;
+@define-color dragonBlue #7dc4e4;
+
+/* Semantic module colors (dark theme - warm mocha pastels) */
+@define-color module-clock #fab387;
+@define-color module-launcher #f5e0dc;
+@define-color module-workspace-active #f5e0dc;
+@define-color module-system #f9e2af;
+@define-color module-media #f9e2af;
+@define-color module-weather #f2cdcd;
+@define-color module-network #eba0ac;
+@define-color module-audio #74c7ec;
+@define-color module-bluetooth #f2cdcd;
+@define-color module-muted #6c7086;
+@define-color state-warning #f9e2af;
+@define-color state-critical #f38ba8;

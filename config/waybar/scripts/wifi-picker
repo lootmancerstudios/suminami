@@ -1,0 +1,231 @@
+#!/usr/bin/env python3
+"""
+WiFi picker for waybar - uses NetworkManager D-Bus API for speed,
+falls back to nmcli if python-dbus unavailable.
+
+Features: Connect, disconnect, rescan, shows signal strength
+"""
+
+import subprocess
+import sys
+
+def get_current_connection():
+    """Get currently connected WiFi SSID, or None"""
+    # Use iwgetid for reliable SSID detection
+    result = subprocess.run(['iwgetid', '-r'], capture_output=True, text=True)
+    ssid = result.stdout.strip()
+    if ssid:
+        return ssid
+
+    # Fallback to nmcli
+    result = subprocess.run(
+        ['nmcli', '-t', '-f', 'NAME,TYPE', 'con', 'show', '--active'],
+        capture_output=True, text=True
+    )
+    for line in result.stdout.strip().split('\n'):
+        parts = line.split(':')
+        if len(parts) >= 2 and parts[1] == 'wifi':
+            return parts[0]
+    return None
+
+def get_connection_type():
+    """Check if we're on ethernet or wifi"""
+    result = subprocess.run(
+        ['nmcli', '-t', '-f', 'type,state', 'dev'],
+        capture_output=True, text=True
+    )
+    for line in result.stdout.strip().split('\n'):
+        parts = line.split(':')
+        if len(parts) >= 2 and parts[1] == 'connected':
+            return parts[0]  # 'wifi' or 'ethernet'
+    return None
+
+def get_networks_dbus():
+    """Fast method using D-Bus (requires python-dbus)"""
+    import dbus
+
+    bus = dbus.SystemBus()
+    nm = bus.get_object('org.freedesktop.NetworkManager', '/org/freedesktop/NetworkManager')
+    nm_props = dbus.Interface(nm, 'org.freedesktop.DBus.Properties')
+
+    # Find wifi device
+    devices = nm_props.Get('org.freedesktop.NetworkManager', 'AllDevices')
+    wifi_dev = None
+    wifi_props = None
+    for dev_path in devices:
+        dev = bus.get_object('org.freedesktop.NetworkManager', dev_path)
+        dev_props = dbus.Interface(dev, 'org.freedesktop.DBus.Properties')
+        if dev_props.Get('org.freedesktop.NetworkManager.Device', 'DeviceType') == 2:
+            wifi_dev = dbus.Interface(dev, 'org.freedesktop.NetworkManager.Device.Wireless')
+            wifi_props = dev_props
+            break
+
+    if not wifi_props:
+        return []
+
+    try:
+        active_ap = wifi_props.Get('org.freedesktop.NetworkManager.Device.Wireless', 'ActiveAccessPoint')
+    except:
+        active_ap = None
+
+    ap_paths = wifi_props.Get('org.freedesktop.NetworkManager.Device.Wireless', 'AccessPoints')
+
+    networks = {}
+    for ap_path in ap_paths:
+        ap = bus.get_object('org.freedesktop.NetworkManager', ap_path)
+        ap_props = dbus.Interface(ap, 'org.freedesktop.DBus.Properties')
+
+        ssid_bytes = ap_props.Get('org.freedesktop.NetworkManager.AccessPoint', 'Ssid')
+        ssid = ''.join(chr(b) for b in ssid_bytes) if ssid_bytes else ''
+        if not ssid:
+            continue
+
+        strength = int(ap_props.Get('org.freedesktop.NetworkManager.AccessPoint', 'Strength'))
+        flags = int(ap_props.Get('org.freedesktop.NetworkManager.AccessPoint', 'WpaFlags'))
+        security = '󰒃' if flags else '󰒄'  # lock or unlock icon
+        is_active = (ap_path == active_ap)
+
+        if ssid not in networks or strength > networks[ssid][0]:
+            networks[ssid] = (strength, security, is_active)
+
+    return [(ssid, *data) for ssid, data in sorted(networks.items(), key=lambda x: -x[1][0])]
+
+def get_networks_nmcli():
+    """Fallback method using nmcli (slower, but no deps)"""
+    result = subprocess.run(
+        ['nmcli', '-t', '-f', 'active,ssid,signal,security', 'dev', 'wifi'],
+        capture_output=True, text=True
+    )
+
+    networks = {}
+    for line in result.stdout.strip().split('\n'):
+        if not line:
+            continue
+        parts = line.split(':')
+        if len(parts) < 4 or not parts[1]:
+            continue
+        active, ssid, signal, security = parts[0], parts[1], int(parts[2]), parts[3]
+        is_active = (active == 'yes')
+        sec_icon = '󰒃' if security and security != '--' else '󰒄'
+
+        if ssid not in networks or signal > networks[ssid][0]:
+            networks[ssid] = (signal, sec_icon, is_active)
+
+    return [(ssid, *data) for ssid, data in sorted(networks.items(), key=lambda x: -x[1][0])]
+
+def signal_icon(strength):
+    """Return signal strength icon"""
+    if strength >= 80:
+        return '󰤨'
+    elif strength >= 60:
+        return '󰤥'
+    elif strength >= 40:
+        return '󰤢'
+    elif strength >= 20:
+        return '󰤟'
+    else:
+        return '󰤯'
+
+def check_custom_command():
+    """Check if user has configured a custom wifi click command"""
+    import os
+    config_file = os.path.expanduser('~/.config/waybar/suminami.conf')
+    if os.path.exists(config_file):
+        with open(config_file) as f:
+            for line in f:
+                if line.startswith('wifi_click_command='):
+                    cmd = line.split('=', 1)[1].strip()
+                    if cmd:
+                        return cmd
+    return None
+
+def main():
+    # Check for custom command override
+    custom_cmd = check_custom_command()
+    if custom_cmd:
+        subprocess.run(custom_cmd, shell=True)
+        sys.exit(0)
+
+    current_ssid = get_current_connection()
+    conn_type = get_connection_type()
+
+    # Try fast D-Bus method, fall back to nmcli
+    try:
+        networks = get_networks_dbus()
+    except ImportError:
+        networks = get_networks_nmcli()
+    except Exception:
+        networks = get_networks_nmcli()
+
+    # Format for picker
+    lines = []
+
+    # Add action options at top
+    if current_ssid:
+        lines.append(f"󰖪  Disconnect from {current_ssid}|disconnect")
+
+    lines.append("󰑓  Rescan networks|rescan")
+    lines.append("─────────────────────────|separator")
+
+    # Add networks
+    for ssid, strength, security, is_active in networks:
+        sig_icon = signal_icon(strength)
+        if is_active:
+            lines.append(f"󰤨  {ssid}  {strength}%  {security}  (connected)|connected:{ssid}")
+        else:
+            lines.append(f"{sig_icon}  {ssid}  {strength}%  {security}|connect:{ssid}")
+
+    if not networks:
+        lines.append("󰤭  No networks found|none")
+
+    # Display only (strip actions for wofi)
+    display_lines = [l.split('|')[0] for l in lines]
+
+    # Try wofi, fall back to rofi
+    for picker in [['wofi', '--dmenu', '--prompt', 'WiFi', '--cache-file', '/dev/null'],
+                   ['rofi', '-dmenu', '-p', 'WiFi']]:
+        try:
+            result = subprocess.run(picker, input='\n'.join(display_lines), capture_output=True, text=True)
+            break
+        except FileNotFoundError:
+            continue
+    else:
+        subprocess.run(['notify-send', 'WiFi', 'No picker found (install wofi or rofi)'])
+        sys.exit(1)
+
+    if result.returncode != 0 or not result.stdout.strip():
+        sys.exit(0)
+
+    # Find matching action
+    selected = result.stdout.strip()
+    action = None
+    for line in lines:
+        if line.split('|')[0] == selected:
+            action = line.split('|')[1] if '|' in line else None
+            break
+
+    if not action or action == 'separator' or action == 'none':
+        sys.exit(0)
+
+    # Execute action
+    if action == 'disconnect':
+        subprocess.run(['nmcli', 'con', 'down', current_ssid])
+        subprocess.run(['notify-send', 'WiFi', f'Disconnected from {current_ssid}', '-t', '2000'])
+    elif action == 'rescan':
+        subprocess.run(['notify-send', 'WiFi', 'Scanning...', '-t', '1000'])
+        subprocess.run(['nmcli', 'dev', 'wifi', 'rescan'])
+        # Re-run picker after scan
+        subprocess.Popen([sys.argv[0]])
+    elif action.startswith('connect:'):
+        ssid = action.split(':', 1)[1]
+        subprocess.run(['notify-send', 'WiFi', f'Connecting to {ssid}...', '-t', '2000'])
+        result = subprocess.run(['nmcli', 'con', 'up', ssid], capture_output=True, text=True)
+        if result.returncode != 0:
+            # Try connecting as new network (will prompt for password)
+            subprocess.run(['nmcli', 'dev', 'wifi', 'connect', ssid])
+    elif action.startswith('connected:'):
+        # Already connected, do nothing
+        pass
+
+if __name__ == '__main__':
+    main()
