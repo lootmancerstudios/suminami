@@ -449,14 +449,23 @@ setup_shell_integration() {
     # Detect user's shell
     shell_name=$(basename "$SHELL")
 
+    local source_line
     case "$shell_name" in
         bash)
             rc_file="$HOME/.bashrc"
             shell_config="$suminami_dir/config/shell/zoxide.bash"
+            source_line="source \"$shell_config\""
             ;;
         zsh)
             rc_file="$HOME/.zshrc"
             shell_config="$suminami_dir/config/shell/zoxide.zsh"
+            source_line="source \"$shell_config\""
+            ;;
+        fish)
+            rc_file="$HOME/.config/fish/config.fish"
+            shell_config="$suminami_dir/config/shell/zoxide.fish"
+            source_line="source \"$shell_config\""
+            mkdir -p "$HOME/.config/fish"
             ;;
         *)
             print_warning "Shell '$shell_name' not supported for auto-setup"
@@ -466,7 +475,6 @@ setup_shell_integration() {
     esac
 
     # Check if already sourced
-    local source_line="source \"$shell_config\""
     if grep -qF "$shell_config" "$rc_file" 2>/dev/null; then
         print_status "Shell integration already configured"
         return 0
