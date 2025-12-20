@@ -126,13 +126,6 @@ PACMAN_DEPS=(
 # AUR dependencies
 AUR_DEPS=(
     swaylock-effects
-    kanagawa-gtk-theme-git
-    catppuccin-gtk-theme-mocha
-    catppuccin-gtk-theme-macchiato
-    catppuccin-gtk-theme-frappe
-    catppuccin-gtk-theme-latte
-    gruvbox-gtk-theme-git
-    kvantum-theme-catppuccin-git
     bibata-cursor-theme-bin
 )
 
@@ -212,6 +205,29 @@ create_symlinks() {
             rm -rf "$HOME/.config/$config" 2>/dev/null || true
             ln -sfn "$suminami_dir/config/$config" "$HOME/.config/$config"
             print_success "  $config -> suminami/config/$config"
+        fi
+    done
+}
+
+# Install GTK themes (minimal set)
+install_gtk_themes() {
+    local suminami_dir="$HOME/.config/suminami"
+    local themes_source="$suminami_dir/themes/gtk"
+    local themes_dest="$HOME/.local/share/themes"
+
+    if [ ! -d "$themes_source" ]; then
+        print_warning "GTK themes not found in repo, skipping"
+        return 0
+    fi
+
+    print_status "Installing GTK themes..."
+    mkdir -p "$themes_dest"
+
+    for theme in "$themes_source"/*; do
+        if [ -d "$theme" ]; then
+            local theme_name=$(basename "$theme")
+            cp -r "$theme" "$themes_dest/"
+            print_success "  Installed $theme_name"
         fi
     done
 }
@@ -401,6 +417,7 @@ main() {
     install_packages
     setup_suminami
     create_symlinks
+    install_gtk_themes
 
     # Generate initial theme
     print_status "Generating default theme..."
