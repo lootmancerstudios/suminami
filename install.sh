@@ -237,7 +237,7 @@ main() {
     echo ""
     print_status "Next steps:"
     echo "  1. Log out and back in (or reboot)"
-    echo "  2. Press Super+Space to launch Walker"
+    echo "  2. Press Super+A to launch Walker"
     echo ""
 }
 
