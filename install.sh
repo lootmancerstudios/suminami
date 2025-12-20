@@ -113,8 +113,11 @@ PACMAN_DEPS=(
 )
 
 # AUR dependencies
+# Note: Use walker-bin but NON-bin elephant providers to avoid conflicts
 AUR_DEPS=(
     walker-bin
+    elephant-desktopapplications
+    elephant-websearch
 )
 
 # Install packages
@@ -134,10 +137,30 @@ install_packages() {
     print_status "Installing core dependencies..."
     sudo pacman -S --needed --noconfirm "${PACMAN_DEPS[@]}"
 
-    print_status "Installing AUR packages..."
+    print_status "Installing AUR packages (this may take a few minutes)..."
     "$aur_helper" -S --needed --noconfirm "${AUR_DEPS[@]}"
 
     print_success "All dependencies installed"
+}
+
+# Setup Walker's elephant service
+setup_elephant() {
+    print_status "Enabling elephant service for Walker..."
+
+    # Enable the systemd user service
+    elephant service enable 2>/dev/null || true
+
+    # Start the service
+    systemctl --user start elephant 2>/dev/null || true
+
+    # Wait for it to index applications
+    sleep 2
+
+    if systemctl --user is-active elephant &>/dev/null; then
+        print_success "Elephant service running"
+    else
+        print_warning "Elephant service may need manual start after reboot"
+    fi
 }
 
 # Backup existing configs
@@ -207,10 +230,14 @@ main() {
     install_packages
     setup_suminami
     create_symlinks
+    setup_elephant
 
     echo ""
     print_success "Suminami installation complete!"
-    print_status "Please log out and back in, or reboot."
+    echo ""
+    print_status "Next steps:"
+    echo "  1. Log out and back in (or reboot)"
+    echo "  2. Press Super+Space to launch Walker"
     echo ""
 }
 
