@@ -95,29 +95,30 @@ install_yay() {
 # Core dependencies (from official repos)
 PACMAN_DEPS=(
     hyprland
+    hyprpaper
     waybar
     kitty
     wofi
     dunst
-    swaylock-effects
-    swaybg
+    swaylock
     grim
     slurp
     wl-clipboard
     brightnessctl
     playerctl
     pamixer
+    libnotify
     ttf-jetbrains-mono-nerd
     jq
     socat
+    qt6-5compat
+    qt6-declarative
+    qt6-svg
 )
 
 # AUR dependencies
-# Note: Use walker-bin but NON-bin elephant providers to avoid conflicts
 AUR_DEPS=(
-    walker-bin
-    elephant-desktopapplications
-    elephant-websearch
+    swaylock-effects
 )
 
 # Install packages
@@ -137,36 +138,19 @@ install_packages() {
     print_status "Installing core dependencies..."
     sudo pacman -S --needed --noconfirm "${PACMAN_DEPS[@]}"
 
-    print_status "Installing AUR packages (this may take a few minutes)..."
-    "$aur_helper" -S --needed --noconfirm "${AUR_DEPS[@]}"
+    # Only install AUR packages if there are any
+    if [ ${#AUR_DEPS[@]} -gt 0 ]; then
+        print_status "Installing AUR packages (this may take a few minutes)..."
+        "$aur_helper" -S --needed --noconfirm "${AUR_DEPS[@]}"
+    fi
 
     print_success "All dependencies installed"
-}
-
-# Setup Walker's elephant service
-setup_elephant() {
-    print_status "Enabling elephant service for Walker..."
-
-    # Enable the systemd user service
-    elephant service enable 2>/dev/null || true
-
-    # Start the service
-    systemctl --user start elephant 2>/dev/null || true
-
-    # Wait for it to index applications
-    sleep 2
-
-    if systemctl --user is-active elephant &>/dev/null; then
-        print_success "Elephant service running"
-    else
-        print_warning "Elephant service may need manual start after reboot"
-    fi
 }
 
 # Backup existing configs
 backup_configs() {
     local backup_dir="$HOME/.config/suminami-backup-$(date +%Y%m%d-%H%M%S)"
-    local configs_to_backup=(hypr waybar wofi walker dunst swaylock kitty)
+    local configs_to_backup=(hypr waybar wofi dunst swaylock kitty)
     local backed_up=false
 
     for config in "${configs_to_backup[@]}"; do
@@ -204,7 +188,7 @@ setup_suminami() {
 # Create symlinks
 create_symlinks() {
     local suminami_dir="$HOME/.config/suminami"
-    local configs=(waybar wofi walker)
+    local configs=(waybar wofi dunst)
 
     print_status "Creating config symlinks..."
 
@@ -215,6 +199,62 @@ create_symlinks() {
             print_success "  $config -> suminami/config/$config"
         fi
     done
+}
+
+# Install SDDM theme
+install_sddm_theme() {
+    local suminami_dir="$HOME/.config/suminami"
+    local theme_source="$suminami_dir/sddm/suminami"
+    local theme_dest="/usr/share/sddm/themes/suminami"
+
+    # Check if SDDM is installed
+    if ! command -v sddm &> /dev/null; then
+        print_warning "SDDM not detected, skipping login theme"
+        return 0
+    fi
+
+    echo ""
+    read -p "Install SumiNami SDDM login theme? [y/N] " -n 1 -r
+    echo ""
+
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        print_status "Installing SDDM theme (requires sudo)..."
+
+        if [ -d "$theme_source" ]; then
+            sudo rm -rf "$theme_dest" 2>/dev/null || true
+            sudo cp -r "$theme_source" "$theme_dest"
+
+            # Copy wallpapers to theme folder for SDDM access
+            local wallpaper_source="$suminami_dir/wallpapers"
+            if [ -d "$wallpaper_source" ]; then
+                print_status "Copying wallpapers to SDDM theme..."
+                sudo mkdir -p "$theme_dest/wallpapers"
+                sudo cp "$wallpaper_source"/*.{jpg,jpeg,png,webp} "$theme_dest/wallpapers/" 2>/dev/null || true
+                sudo chmod 644 "$theme_dest/wallpapers/"* 2>/dev/null || true
+            fi
+
+            # Configure SDDM to use theme
+            sudo mkdir -p /etc/sddm.conf.d
+            echo -e "[Theme]\nCurrent=suminami" | sudo tee /etc/sddm.conf.d/suminami.conf > /dev/null
+
+            print_success "SDDM theme installed"
+        else
+            print_error "SDDM theme not found at $theme_source"
+        fi
+    else
+        print_status "Skipping SDDM theme"
+    fi
+}
+
+# Set initial wallpaper
+set_initial_wallpaper() {
+    local suminami_dir="$HOME/.config/suminami"
+    local wallpaper="$suminami_dir/wallpapers/kanagawa.jpg"
+
+    if [ -f "$wallpaper" ]; then
+        echo "$wallpaper" > "$suminami_dir/current-wallpaper"
+        print_success "Default wallpaper set to kanagawa"
+    fi
 }
 
 # Main
@@ -230,14 +270,24 @@ main() {
     install_packages
     setup_suminami
     create_symlinks
-    setup_elephant
+
+    # Generate initial theme
+    print_status "Generating default theme..."
+    "$HOME/.config/suminami/scripts/generate-theme.sh"
+
+    # Set initial wallpaper
+    set_initial_wallpaper
+
+    # Optional: Install SDDM theme
+    install_sddm_theme
 
     echo ""
     print_success "Suminami installation complete!"
     echo ""
     print_status "Next steps:"
     echo "  1. Log out and back in (or reboot)"
-    echo "  2. Press Super+A to launch Walker"
+    echo "  2. Press Super+A to open the Hub Menu"
+    echo "  3. Use Style > Themes to switch themes"
     echo ""
 }
 
