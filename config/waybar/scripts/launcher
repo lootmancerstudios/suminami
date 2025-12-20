@@ -7,7 +7,12 @@ CONFIG_FILE="$HOME/.config/waybar/suminami.conf"
 launcher_cmd="wofi --show drun"
 if [ -f "$CONFIG_FILE" ]; then
     configured=$(grep "^launcher_command=" "$CONFIG_FILE" | cut -d'=' -f2-)
-    [ -n "$configured" ] && launcher_cmd="$configured"
+    if [ -n "$configured" ]; then
+        # Expand ~ and $HOME in the command
+        configured="${configured/#\~/$HOME}"
+        configured="${configured//\$HOME/$HOME}"
+        launcher_cmd="$configured"
+    fi
 fi
 
 # Execute the launcher
