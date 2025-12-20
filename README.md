@@ -47,6 +47,11 @@ Themes are defined centrally in `themes/` and applied across all components. Cha
 
 This rice is under active development. See [suminami-bar](https://github.com/lootmancerstudios/suminami-bar) for the standalone waybar theme.
 
+## Credits
+
+### Wallpapers
+Theme wallpapers by [Refiend](https://www.deviantart.com/refiend) on DeviantArt.
+
 ## License
 
 MIT License
