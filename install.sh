@@ -401,7 +401,9 @@ install_basic_apps() {
     if [ "$has_image_viewer" = false ]; then
         print_status "Installing image viewer (imv)..."
         sudo pacman -S --needed --noconfirm imv
-        print_success "imv installed"
+        # Set imv as default for common image types
+        xdg-mime default imv.desktop image/png image/jpeg image/jpg image/gif image/webp image/bmp image/tiff image/svg+xml 2>/dev/null
+        print_success "imv installed and set as default"
     else
         print_status "Image viewer already installed, skipping"
     fi
