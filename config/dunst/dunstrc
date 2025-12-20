@@ -1,0 +1,84 @@
+# SumiNami - Dunst notification config
+# Colors are managed by generate-theme.sh
+
+[global]
+    # Display
+    monitor = 0
+    follow = mouse
+
+    # Geometry
+    width = 350
+    height = (0, 150)
+    origin = top-right
+    offset = (16, 16)
+
+    # Progress bar
+    progress_bar = true
+    progress_bar_height = 8
+    progress_bar_frame_width = 1
+    progress_bar_min_width = 150
+    progress_bar_max_width = 300
+
+    # Appearance
+    transparency = 0
+    padding = 16
+    horizontal_padding = 16
+    text_icon_padding = 16
+    frame_width = 1
+    gap_size = 8
+    separator_height = 1
+    corner_radius = 0
+
+    # Font
+    font = JetBrainsMono Nerd Font 11
+    line_height = 0
+    markup = full
+    format = "<b>%s</b>\n%b"
+    alignment = left
+    vertical_alignment = center
+
+    # Behavior
+    sort = yes
+    idle_threshold = 120
+    show_age_threshold = 60
+    word_wrap = yes
+    ellipsize = middle
+    ignore_newline = no
+    stack_duplicates = true
+    hide_duplicate_count = false
+    show_indicators = yes
+
+    # Icons
+    icon_position = left
+    min_icon_size = 32
+    max_icon_size = 48
+
+    # History
+    sticky_history = yes
+    history_length = 20
+
+    # Mouse actions
+    mouse_left_click = close_current
+    mouse_middle_click = do_action, close_current
+    mouse_right_click = close_all
+
+# Colors - will be overwritten by generate-theme.sh
+[urgency_low]
+    background = "#16161Df5"
+    foreground = "#DCD7BA"
+    frame_color = "#dddddd"
+    timeout = 5
+
+[urgency_normal]
+    background = "#16161Df5"
+    foreground = "#DCD7BA"
+    frame_color = "#dddddd"
+    highlight = "#D27E99"
+    timeout = 8
+
+[urgency_critical]
+    background = "#16161Df5"
+    foreground = "#DCD7BA"
+    frame_color = "#E46876"
+    highlight = "#E46876"
+    timeout = 0
