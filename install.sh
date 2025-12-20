@@ -385,6 +385,47 @@ install_fetch_tool() {
     fi
 }
 
+# Install basic apps (image viewer, text editor) if not present
+install_basic_apps() {
+    # Common image viewers to check for
+    local image_viewers=(imv loupe feh sxiv nsxiv swayimg eog gpicview ristretto gwenview viewnior)
+    local has_image_viewer=false
+
+    for viewer in "${image_viewers[@]}"; do
+        if command -v "$viewer" &> /dev/null || pacman -Qq "$viewer" &> /dev/null 2>&1; then
+            has_image_viewer=true
+            break
+        fi
+    done
+
+    if [ "$has_image_viewer" = false ]; then
+        print_status "Installing image viewer (imv)..."
+        sudo pacman -S --needed --noconfirm imv
+        print_success "imv installed"
+    else
+        print_status "Image viewer already installed, skipping"
+    fi
+
+    # Common text editors to check for
+    local text_editors=(mousepad gedit gnome-text-editor xed pluma kate geany leafpad featherpad code)
+    local has_text_editor=false
+
+    for editor in "${text_editors[@]}"; do
+        if command -v "$editor" &> /dev/null || pacman -Qq "$editor" &> /dev/null 2>&1; then
+            has_text_editor=true
+            break
+        fi
+    done
+
+    if [ "$has_text_editor" = false ]; then
+        print_status "Installing text editor (mousepad)..."
+        sudo pacman -S --needed --noconfirm mousepad
+        print_success "mousepad installed"
+    else
+        print_status "Text editor already installed, skipping"
+    fi
+}
+
 # Install optional TUI enhancements
 install_tui_enhancements() {
     local suminami_dir="$HOME/.config/suminami"
@@ -513,6 +554,9 @@ main() {
 
     # Install fetch tool (neofetch config or fastfetch)
     install_fetch_tool
+
+    # Install basic apps (image viewer, text editor) if missing
+    install_basic_apps
 
     # Optional: Install SDDM theme
     install_sddm_theme
