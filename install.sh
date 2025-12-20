@@ -111,7 +111,6 @@ PACMAN_DEPS=(
     ttf-jetbrains-mono-nerd
     jq
     socat
-    qt6-5compat
     qt6-declarative
     qt6-svg
     imagemagick
@@ -120,10 +119,12 @@ PACMAN_DEPS=(
     papirus-icon-theme
     # File managers
     thunar
+    gvfs
+    tumbler
     yazi
     # Yazi optional deps
     ffmpeg
-    p7zip
+    7zip
     poppler
     fd
     ripgrep
