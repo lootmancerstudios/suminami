@@ -474,32 +474,19 @@ setup_shell_integration() {
             ;;
     esac
 
-    # Check if already sourced
+    # Check if already configured
     if grep -qF "$shell_config" "$rc_file" 2>/dev/null; then
         print_status "Shell integration already configured"
         return 0
     fi
 
-    echo ""
-    echo -e "${BLUE}Shell Integration${NC}"
-    echo "  Detected shell: $shell_name"
-    echo "  This adds smart 'cd' with zoxide (jump to frecent directories)"
-    echo ""
-    read -p "Add shell integration to $rc_file? [Y/n] " -n 1 -r
-    echo ""
-
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        print_status "Skipping shell integration"
-        return 0
-    fi
-
     # Add source line to rc file
+    print_status "Adding shell integration to $rc_file..."
     echo "" >> "$rc_file"
     echo "# SumiNami shell integration" >> "$rc_file"
     echo "$source_line" >> "$rc_file"
 
-    print_success "Shell integration added to $rc_file"
-    echo "  Restart your terminal or run: source $rc_file"
+    print_success "Shell integration configured (smart cd with zoxide)"
 }
 
 # Main
