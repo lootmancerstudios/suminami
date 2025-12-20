@@ -350,29 +350,13 @@ EOF
 generate_qt() {
     local kvantum_theme=""
 
-    # Map SumiNami theme to Kvantum theme
-    case "$CURRENT_THEME" in
-        kanagawa|kanagawa-dragon|kanagawa-lotus|kanagawa-blossom)
-            # Kvantum doesn't have Kanagawa, use a dark theme
-            kvantum_theme="KvGnomeDark"
-            ;;
-        catppuccin-mocha)
-            kvantum_theme="Catppuccin-Mocha-Blue"
-            ;;
-        catppuccin-macchiato)
-            kvantum_theme="Catppuccin-Macchiato-Blue"
-            ;;
-        catppuccin-frappe)
-            kvantum_theme="Catppuccin-Frappe-Blue"
-            ;;
-        catppuccin-latte)
-            kvantum_theme="Catppuccin-Latte-Blue"
-            ;;
-        gruvbox-dark)
-            kvantum_theme="gruvbox-kvantum"
+    # Map SumiNami theme to Kvantum theme (using bundled themes)
+    case "$THEME_TYPE" in
+        light)
+            kvantum_theme="KvFlatLight"
             ;;
         *)
-            kvantum_theme="KvGnomeDark"
+            kvantum_theme="KvDark"
             ;;
     esac
 
