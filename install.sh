@@ -121,6 +121,7 @@ PACMAN_DEPS=(
     qt5ct
     qt6ct
     papirus-icon-theme
+    breeze
 )
 
 # AUR dependencies
