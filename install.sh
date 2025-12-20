@@ -117,11 +117,18 @@ PACMAN_DEPS=(
     imagemagick
     btop
     python-pipx
-    kvantum
-    qt5ct
-    qt6ct
     papirus-icon-theme
-    breeze
+    # File managers
+    thunar
+    yazi
+    # Yazi optional deps
+    ffmpeg
+    p7zip
+    poppler
+    fd
+    ripgrep
+    fzf
+    zoxide
 )
 
 # AUR dependencies
@@ -130,10 +137,36 @@ AUR_DEPS=(
     bibata-cursor-theme-bin
 )
 
+# Remove KDE bloat if Dolphin is installed
+cleanup_kde_bloat() {
+    if pacman -Qq dolphin &> /dev/null; then
+        print_status "Removing Dolphin and KDE dependencies (replacing with Thunar)..."
+        sudo pacman -Rns --noconfirm dolphin 2>/dev/null || true
+    fi
+
+    # Remove other KDE theming bloat if present
+    local kde_bloat=(kvantum qt5ct qt6ct breeze kdecoration frameworkintegration)
+    local to_remove=()
+
+    for pkg in "${kde_bloat[@]}"; do
+        if pacman -Qq "$pkg" &> /dev/null; then
+            to_remove+=("$pkg")
+        fi
+    done
+
+    if [ ${#to_remove[@]} -gt 0 ]; then
+        print_status "Removing unnecessary Qt/KDE theming packages..."
+        sudo pacman -Rns --noconfirm "${to_remove[@]}" 2>/dev/null || true
+    fi
+}
+
 # Install packages
 install_packages() {
     local aur_helper
     aur_helper=$(get_aur_helper)
+
+    # Clean up KDE bloat first
+    cleanup_kde_bloat
 
     print_status "Updating system..."
     sudo pacman -Syu --noconfirm

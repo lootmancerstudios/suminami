@@ -346,50 +346,11 @@ EOF
     echo "  ✓ GTK theme set to $gtk_theme"
 }
 
-# Generate Kvantum/Qt theme settings
-generate_qt() {
-    local kvantum_theme=""
-
-    # Map SumiNami theme to Kvantum theme (using bundled themes)
-    case "$THEME_TYPE" in
-        light)
-            kvantum_theme="KvFlatLight"
-            ;;
-        *)
-            kvantum_theme="KvDark"
-            ;;
-    esac
-
-    # Set Kvantum theme
-    if command -v kvantummanager &> /dev/null; then
-        kvantummanager --set "$kvantum_theme" 2>/dev/null || true
-    fi
-
-    # Configure qt5ct/qt6ct to use kvantum
-    mkdir -p "$HOME/.config/qt5ct"
-    mkdir -p "$HOME/.config/qt6ct"
-
-    cat > "$HOME/.config/qt5ct/qt5ct.conf" << EOF
-[Appearance]
-style=kvantum
-icon_theme=$( [ "$THEME_TYPE" = "light" ] && echo "Papirus-Light" || echo "Papirus-Dark" )
-EOF
-
-    cat > "$HOME/.config/qt6ct/qt6ct.conf" << EOF
-[Appearance]
-style=kvantum
-icon_theme=$( [ "$THEME_TYPE" = "light" ] && echo "Papirus-Light" || echo "Papirus-Dark" )
-EOF
-
-    echo "  ✓ Qt/Kvantum theme set to $kvantum_theme"
-}
-
 # Run all generators
 generate_wofi
 generate_waybar_colors
 generate_waybar_script_colors
 generate_dunst
 generate_gtk
-generate_qt
 
 echo "Theme generation complete!"
