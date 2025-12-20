@@ -114,6 +114,7 @@ PACMAN_DEPS=(
     qt6-5compat
     qt6-declarative
     qt6-svg
+    imagemagick
 )
 
 # AUR dependencies
@@ -257,6 +258,41 @@ set_initial_wallpaper() {
     fi
 }
 
+# Install Limine theme (optional, if Limine detected)
+install_limine_theme() {
+    local suminami_dir="$HOME/.config/suminami"
+    local limine_installer="$suminami_dir/limine/install-limine-theme.sh"
+
+    # Check if Limine is installed
+    local limine_conf=""
+    for loc in "/boot/limine/limine.conf" "/boot/limine.conf" "/boot/EFI/limine/limine.conf" "/boot/efi/limine/limine.conf"; do
+        if [ -f "$loc" ]; then
+            limine_conf="$loc"
+            break
+        fi
+    done
+
+    if [ -z "$limine_conf" ]; then
+        # Limine not detected, skip silently
+        return 0
+    fi
+
+    print_status "Limine bootloader detected at $limine_conf"
+    echo ""
+    read -p "Would you like to install the SumiNami Limine theme? [y/N] " -n 1 -r
+    echo ""
+
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if [ -x "$limine_installer" ]; then
+            "$limine_installer"
+        else
+            print_error "Limine installer not found at $limine_installer"
+        fi
+    else
+        print_status "Skipping Limine theme"
+    fi
+}
+
 # Main
 main() {
     echo ""
@@ -280,6 +316,9 @@ main() {
 
     # Optional: Install SDDM theme
     install_sddm_theme
+
+    # Optional: Install Limine theme (if detected)
+    install_limine_theme
 
     echo ""
     print_success "Suminami installation complete!"
