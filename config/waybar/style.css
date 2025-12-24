@@ -353,3 +353,26 @@ tooltip label {
 #bluetooth.disabled {
     color: @sumiInk6;
 }
+
+/* Recording indicator */
+@keyframes blink-recording {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+#custom-recording {
+    padding: 0;
+    margin: 0;
+}
+
+#custom-recording.recording {
+    padding: 0 8px;
+    color: @state-critical;
+    font-weight: bold;
+    animation: blink-recording 1s ease-in-out infinite;
+}
+
+#custom-recording.recording:hover {
+    background: alpha(@sumiInk4, 0.9);
+    animation: none;
+}
