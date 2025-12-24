@@ -1,0 +1,16 @@
+# Monitor Configuration
+# See https://wiki.hypr.land/Configuring/Monitors/
+#
+# This file is gitignored - your local monitors.conf won't be overwritten by updates.
+#
+# Syntax: monitor = name, resolution, position, scale
+#
+# Examples:
+#   monitor = ,preferred,auto,auto                    # Auto-detect (recommended default)
+#   monitor = HDMI-A-1, 1920x1080@60, 0x0, 1          # Specific monitor
+#   monitor = DP-1, 2560x1440@144, 1920x0, 1          # Second monitor to the right
+#   monitor = eDP-1, 1920x1080@60, 0x0, 1             # Laptop display
+#
+# To find your monitor names: hyprctl monitors
+
+monitor = ,preferred,auto,auto
