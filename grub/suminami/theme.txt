@@ -1,0 +1,55 @@
+# SumiNami GRUB Theme - Kanagawa
+# Minimal, dark theme inspired by the Kanagawa color palette
+# Designed for any resolution
+
+# Global Properties
+title-text: ""
+desktop-image: "background.png"
+desktop-image-scale-method: "stretch"
+desktop-color: "#1F1F28"
+terminal-font: "Unifont Regular 16"
+terminal-left: "0"
+terminal-top: "0"
+terminal-width: "100%"
+terminal-height: "100%"
+terminal-border: "0"
+
+# Boot Menu
++ boot_menu {
+    left = 50%-240
+    top = 35%
+    width = 480
+    height = 40%
+    item_font = "Unifont Regular 16"
+    item_color = "#DCD7BA"
+    selected_item_color = "#7E9CD8"
+    icon_width = 0
+    icon_height = 0
+    item_height = 40
+    item_padding = 15
+    item_spacing = 10
+    selected_item_pixmap_style = "select_*.png"
+}
+
+# Countdown label
++ label {
+    top = 80%
+    left = 35%
+    width = 30%
+    align = "center"
+    id = "__timeout__"
+    text = "Booting in %d seconds"
+    color = "#727169"
+    font = "Unifont Regular 16"
+}
+
+# Branding label (bottom)
++ label {
+    top = 95%
+    left = 0
+    width = 100%
+    align = "center"
+    text = "SumiNami"
+    color = "#54546D"
+    font = "Unifont Regular 16"
+}
