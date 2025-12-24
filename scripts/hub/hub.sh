@@ -8,13 +8,14 @@ OPTIONS="󰀻  Apps
 󰃣  Style
 󰑓  Reload
 󰋗  Help
+󰚰  Update
 󰐥  System"
 
 # Show menu (rofi with cycle enabled, no search bar)
 CHOICE=$(echo -e "$OPTIONS" | rofi -dmenu -cycle \
     -theme-str 'inputbar { enabled: false; }' \
     -theme-str 'window { width: 320px; }' \
-    -theme-str 'listview { lines: 5; }')
+    -theme-str 'listview { lines: 6; }')
 
 # Handle selection
 case "$CHOICE" in
@@ -37,6 +38,9 @@ case "$CHOICE" in
         ;;
     *"Help"*)
         "$SCRIPTS_DIR/help.sh"
+        ;;
+    *"Update"*)
+        kitty -e "$HOME/.config/suminami/scripts/update.sh"
         ;;
     *"System"*)
         "$SCRIPTS_DIR/system.sh"
