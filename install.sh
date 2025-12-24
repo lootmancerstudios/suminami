@@ -70,7 +70,7 @@ confirm_install() {
     echo ""
     echo -e "${BLUE}The following will be installed/configured:${NC}"
     echo ""
-    echo "  Core: Hyprland, Waybar, Wofi, Kitty, Dunst"
+    echo "  Core: Hyprland, Waybar, Rofi, Kitty, Dunst"
     echo "  Apps: Firefox, Thunar, Yazi, btop"
     echo "  Tools: Screenshots, notifications, media controls"
     echo "  Theme: GTK themes, Papirus icons, Bibata cursor"
@@ -289,6 +289,7 @@ PACMAN_DEPS=(
     btop
     python-pipx
     papirus-icon-theme
+    polkit-gnome
     # File managers
     thunar
     gvfs
@@ -402,7 +403,7 @@ setup_suminami() {
 # Create symlinks
 create_symlinks() {
     local suminami_dir="$HOME/.config/suminami"
-    local configs=(waybar rofi dunst btop)
+    local configs=(waybar dunst btop)
 
     print_status "Creating config symlinks..."
 

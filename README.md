@@ -12,7 +12,7 @@ Suminami is a complete desktop experience built around the Kanagawa color palett
 |-----------|-------------|
 | Hyprland | Window manager configuration |
 | Waybar | Status bar with rich tooltips |
-| Wofi | Application launcher and custom modals |
+| Rofi | Application launcher and custom menus |
 | Notifications | Styled notification system |
 | Lock Screen | Themed lock screen |
 | And more... | Terminal, GTK theming, etc. |
@@ -24,7 +24,7 @@ suminami/
 ├── config/           # Application configs (symlinked to ~/.config/)
 │   ├── hypr/
 │   ├── waybar/
-│   ├── wofi/
+│   ├── rofi/
 │   └── ...
 ├── themes/           # Master theme definitions
 │   └── kanagawa/
@@ -49,9 +49,17 @@ This rice is under active development. See [suminami-bar](https://github.com/loo
 
 ## Credits
 
+### Inspiration
+*The Great Wave off Kanagawa* by Katsushika Hokusai
+
+### Color Schemes
+- [Kanagawa](https://github.com/rebelot/kanagawa.nvim) by rebelot
+- [Catppuccin](https://github.com/catppuccin/catppuccin) by Catppuccin Org
+- [Gruvbox](https://github.com/morhetz/gruvbox) by morhetz
+
 ### Wallpapers
 Theme wallpapers by [Refiend](https://www.deviantart.com/refiend) on DeviantArt.
 
 ## License
 
-MIT License
+MIT License - See [LICENSE](LICENSE) for details.
