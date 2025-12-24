@@ -581,6 +581,32 @@ install_limine_theme() {
     fi
 }
 
+# Install GRUB theme (optional, if GRUB detected)
+install_grub_theme() {
+    local suminami_dir="$HOME/.config/suminami"
+    local grub_installer="$suminami_dir/grub/install-grub-theme.sh"
+
+    # Check if GRUB is installed - skip silently if not
+    if [ ! -f /etc/default/grub ]; then
+        return 0
+    fi
+
+    print_status "GRUB bootloader detected"
+    echo ""
+    read -p "Would you like to install the SumiNami GRUB theme? [y/N] " -n 1 -r
+    echo ""
+
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if [ -x "$grub_installer" ]; then
+            "$grub_installer"
+        else
+            print_error "GRUB installer not found at $grub_installer"
+        fi
+    else
+        print_status "Skipping GRUB theme"
+    fi
+}
+
 # Install fetch tool (fastfetch or neofetch config)
 install_fetch_tool() {
     local suminami_dir="$HOME/.config/suminami"
@@ -910,6 +936,9 @@ main() {
 
     # Optional: Install Limine theme (if detected)
     install_limine_theme
+
+    # Optional: Install GRUB theme (if detected)
+    install_grub_theme
 
     # Optional: Install TUI enhancements
     install_tui_enhancements
