@@ -1,10 +1,19 @@
 #!/bin/bash
-# Application launcher - reads command from suminami.conf
+# Application launcher - toggle behavior
+# If rofi is running, close it. Otherwise, launch it.
 
+# Check if rofi is already running
+if pgrep -x rofi > /dev/null; then
+    # Rofi is running - kill it (toggle OFF)
+    pkill -x rofi
+    exit 0
+fi
+
+# Rofi is not running - launch it (toggle ON)
 CONFIG_FILE="$HOME/.config/waybar/suminami.conf"
 
-# Get launcher command from config, default to wofi
-launcher_cmd="wofi --show drun"
+# Get launcher command from config, default to hub menu
+launcher_cmd="$HOME/.config/suminami/scripts/hub/hub.sh"
 if [ -f "$CONFIG_FILE" ]; then
     configured=$(grep "^launcher_command=" "$CONFIG_FILE" | cut -d'=' -f2-)
     if [ -n "$configured" ]; then
@@ -15,5 +24,4 @@ if [ -f "$CONFIG_FILE" ]; then
     fi
 fi
 
-# Execute the launcher
 exec $launcher_cmd

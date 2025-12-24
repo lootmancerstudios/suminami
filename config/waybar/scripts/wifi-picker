@@ -178,19 +178,14 @@ def main():
     if not networks:
         lines.append("󰤭  No networks found|none")
 
-    # Display only (strip actions for wofi)
+    # Display only (strip actions for rofi)
     display_lines = [l.split('|')[0] for l in lines]
 
-    # Try wofi, fall back to rofi
-    for picker in [['wofi', '--dmenu', '--prompt', 'WiFi', '--cache-file', '/dev/null'],
-                   ['rofi', '-dmenu', '-p', 'WiFi']]:
-        try:
-            result = subprocess.run(picker, input='\n'.join(display_lines), capture_output=True, text=True)
-            break
-        except FileNotFoundError:
-            continue
-    else:
-        subprocess.run(['notify-send', 'WiFi', 'No picker found (install wofi or rofi)'])
+    # Use rofi
+    try:
+        result = subprocess.run(['rofi', '-dmenu', '-cycle', '-p', 'WiFi'], input='\n'.join(display_lines), capture_output=True, text=True)
+    except FileNotFoundError:
+        subprocess.run(['notify-send', 'WiFi', 'rofi not found'])
         sys.exit(1)
 
     if result.returncode != 0 or not result.stdout.strip():

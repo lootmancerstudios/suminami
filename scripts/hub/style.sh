@@ -6,12 +6,10 @@ SCRIPTS_DIR="$(dirname "$(readlink -f "$0")")"
 OPTIONS="󰉼  Themes
 󰸉  Wallpapers"
 
-CHOICE=$(echo -e "$OPTIONS" | wofi --dmenu \
-    --hide-search \
-    --width 320 \
-    --lines 2 \
-    --cache-file /dev/null \
-    --columns 1)
+CHOICE=$(echo -e "$OPTIONS" | rofi -dmenu -cycle \
+    -theme-str 'inputbar { enabled: false; }' \
+    -theme-str 'window { width: 320px; }' \
+    -theme-str 'listview { lines: 2; }')
 
 case "$CHOICE" in
     *"Themes"*)

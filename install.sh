@@ -268,7 +268,7 @@ PACMAN_DEPS=(
     xdg-desktop-portal-hyprland
     waybar
     kitty
-    wofi
+    rofi-wayland
     dunst
     grim
     slurp
@@ -364,7 +364,7 @@ install_packages() {
 # Backup existing configs
 backup_configs() {
     local backup_dir="$HOME/.config/suminami-backup-$(date +%Y%m%d-%H%M%S)"
-    local configs_to_backup=(hypr waybar wofi dunst swaylock kitty)
+    local configs_to_backup=(hypr waybar rofi dunst swaylock kitty)
     local backed_up=false
 
     for config in "${configs_to_backup[@]}"; do
@@ -402,7 +402,7 @@ setup_suminami() {
 # Create symlinks
 create_symlinks() {
     local suminami_dir="$HOME/.config/suminami"
-    local configs=(waybar wofi dunst btop)
+    local configs=(waybar rofi dunst btop)
 
     print_status "Creating config symlinks..."
 

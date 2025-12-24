@@ -1,5 +1,5 @@
 #!/bin/bash
-# Bluetooth device picker using wofi
+# Bluetooth device picker using rofi
 
 # Check for custom command override
 CONFIG_FILE="$HOME/.config/waybar/suminami.conf"
@@ -54,8 +54,8 @@ fi
 menu="${menu}\n󰑓  Scan for devices|scan"
 menu="${menu}\n󰜉  Toggle Bluetooth|toggle"
 
-# Show wofi
-choice=$(echo -e "$menu" | wofi --show dmenu --prompt "Bluetooth" --cache-file /dev/null | tail -1)
+# Show rofi
+choice=$(echo -e "$menu" | rofi -dmenu -cycle -p "Bluetooth" | tail -1)
 
 [ -z "$choice" ] && exit 0
 

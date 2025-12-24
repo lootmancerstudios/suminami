@@ -49,12 +49,10 @@ revert_wallpaper() {
 # Main preview loop
 while true; do
     # Show wallpaper list (filter for common image types)
-    CHOICE=$(find "$WALLPAPER_DIR" -maxdepth 1 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" -o -iname "*.gif" \) -printf "%f\n" | sort | wofi --dmenu \
-        --prompt "Select wallpaper" \
-        --width 400 \
-        --lines 8 \
-        --cache-file /dev/null \
-        --columns 1)
+    CHOICE=$(find "$WALLPAPER_DIR" -maxdepth 1 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" -o -iname "*.gif" \) -printf "%f\n" | sort | rofi -dmenu -cycle \
+        -p "Select wallpaper" \
+        -theme-str 'window { width: 400px; }' \
+        -theme-str 'listview { lines: 8; }')
 
     # ESC pressed - revert and exit
     if [ -z "$CHOICE" ]; then
@@ -73,12 +71,11 @@ while true; do
     set_wallpaper "$PREVIEW_PATH"
 
     # Ask to confirm or try another
-    CONFIRM=$(echo -e "  Keep this wallpaper\n  Try another" | wofi --dmenu \
-        --prompt "$CHOICE" \
-        --width 320 \
-        --lines 2 \
-        --cache-file /dev/null \
-        --columns 1)
+    CONFIRM=$(echo -e "  Keep this wallpaper\n  Try another" | rofi -dmenu -cycle \
+        -p "$CHOICE" \
+        -theme-str 'inputbar { enabled: false; }' \
+        -theme-str 'window { width: 320px; }' \
+        -theme-str 'listview { lines: 2; }')
 
     case "$CONFIRM" in
         *"Keep"*)
