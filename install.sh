@@ -100,7 +100,6 @@ PACMAN_DEPS=(
     kitty
     wofi
     dunst
-    swaylock
     grim
     slurp
     wl-clipboard
@@ -134,7 +133,6 @@ PACMAN_DEPS=(
 
 # AUR dependencies
 AUR_DEPS=(
-    swaylock-effects
     bibata-cursor-theme-bin
 )
 
@@ -428,6 +426,268 @@ install_basic_apps() {
     fi
 }
 
+# Install screen locker and idle manager if not present
+install_screen_locker() {
+    # Check for existing screen lockers
+    local screen_lockers=(hyprlock swaylock swaylock-effects gtklock waylock i3lock)
+    local has_locker=false
+    local existing_locker=""
+
+    for locker in "${screen_lockers[@]}"; do
+        if command -v "$locker" &> /dev/null || pacman -Qq "$locker" &> /dev/null 2>&1; then
+            has_locker=true
+            existing_locker="$locker"
+            break
+        fi
+    done
+
+    # Check for existing idle managers
+    local idle_managers=(hypridle swayidle)
+    local has_idle=false
+    local existing_idle=""
+
+    for idle in "${idle_managers[@]}"; do
+        if command -v "$idle" &> /dev/null || pacman -Qq "$idle" &> /dev/null 2>&1; then
+            has_idle=true
+            existing_idle="$idle"
+            break
+        fi
+    done
+
+    # If both exist, skip
+    if [ "$has_locker" = true ] && [ "$has_idle" = true ]; then
+        print_status "Screen locker ($existing_locker) and idle manager ($existing_idle) already installed"
+        return 0
+    fi
+
+    # Prompt for installation
+    echo ""
+    echo -e "${BLUE}Screen Lock & Idle Management${NC}"
+    if [ "$has_locker" = true ]; then
+        echo "  Screen locker: $existing_locker (installed)"
+    else
+        echo "  Screen locker: hyprlock (native Hyprland locker)"
+    fi
+    if [ "$has_idle" = true ]; then
+        echo "  Idle manager: $existing_idle (installed)"
+    else
+        echo "  Idle manager: hypridle (auto-lock, DPMS timeout)"
+    fi
+    echo ""
+    read -p "Install screen lock & idle management? [Y/n] " -n 1 -r
+    echo ""
+
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        print_status "Skipping screen locker/idle manager"
+        return 0
+    fi
+
+    # Install hyprlock if no locker
+    if [ "$has_locker" = false ]; then
+        print_status "Installing hyprlock..."
+        sudo pacman -S --needed --noconfirm hyprlock
+        print_success "hyprlock installed"
+
+        # Create hyprlock config if it doesn't exist
+        local hyprlock_config="$HOME/.config/hypr/hyprlock.conf"
+        if [ ! -f "$hyprlock_config" ]; then
+            print_status "Creating hyprlock config..."
+            cat > "$hyprlock_config" << 'EOF'
+# SumiNami hyprlock config
+# Kanagawa palette
+
+general {
+    hide_cursor = true
+    grace = 0
+    no_fade_in = false
+    no_fade_out = false
+}
+
+background {
+    monitor =
+    path = screenshot
+    blur_passes = 3
+    blur_size = 8
+    noise = 0.02
+    contrast = 0.9
+    brightness = 0.6
+    vibrancy = 0.2
+}
+
+# Clock - top right
+label {
+    monitor =
+    text = cmd[update:1000] echo "$(date +"%H:%M")"
+    color = rgba(220, 215, 186, 1.0)
+    font_size = 48
+    font_family = JetBrainsMono Nerd Font Bold
+    position = -32, -32
+    halign = right
+    valign = top
+}
+
+# Date
+label {
+    monitor =
+    text = cmd[update:60000] echo "$(date +"%A, %B %d")"
+    color = rgba(114, 113, 105, 1.0)
+    font_size = 14
+    font_family = JetBrainsMono Nerd Font
+    position = -32, -100
+    halign = right
+    valign = top
+}
+
+# Password input
+input-field {
+    monitor =
+    size = 280, 48
+    outline_thickness = 1
+    dots_size = 0.25
+    dots_spacing = 0.3
+    dots_center = true
+    outer_color = rgba(54, 54, 70, 1.0)
+    inner_color = rgba(31, 31, 40, 1.0)
+    font_color = rgba(220, 215, 186, 1.0)
+    fade_on_empty = false
+    placeholder_text = <span foreground="##727169">Password</span>
+    hide_input = false
+    rounding = 0
+    check_color = rgba(210, 126, 153, 1.0)
+    fail_color = rgba(228, 104, 118, 1.0)
+    fail_text = <span foreground="##E46876">$FAIL</span>
+    position = 0, 0
+    halign = center
+    valign = center
+}
+
+# Lock icon
+label {
+    monitor =
+    text = 󰌾
+    color = rgba(210, 126, 153, 1.0)
+    font_size = 32
+    font_family = JetBrainsMono Nerd Font
+    position = 0, 60
+    halign = center
+    valign = center
+}
+EOF
+            print_success "hyprlock config created"
+        fi
+    fi
+
+    # Install hypridle if no idle manager
+    if [ "$has_idle" = false ]; then
+        print_status "Installing hypridle..."
+        sudo pacman -S --needed --noconfirm hypridle
+        print_success "hypridle installed"
+
+        # Create hypridle config if it doesn't exist
+        local hypridle_config="$HOME/.config/hypr/hypridle.conf"
+        if [ ! -f "$hypridle_config" ]; then
+            print_status "Creating hypridle config..."
+            cat > "$hypridle_config" << 'EOF'
+# SumiNami hypridle config
+
+general {
+    lock_cmd = pidof hyprlock || hyprlock
+    before_sleep_cmd = loginctl lock-session
+    after_sleep_cmd = hyprctl dispatch dpms on
+}
+
+# Dim screen after 10 minutes
+listener {
+    timeout = 600
+    on-timeout = brightnessctl -s set 10%
+    on-resume = brightnessctl -r
+}
+
+# Lock screen after 20 minutes
+listener {
+    timeout = 1200
+    on-timeout = loginctl lock-session
+}
+
+# Turn off display after 40 minutes
+listener {
+    timeout = 2400
+    on-timeout = hyprctl dispatch dpms off
+    on-resume = hyprctl dispatch dpms on
+}
+
+# Suspend after 60 minutes
+listener {
+    timeout = 3600
+    on-timeout = systemctl suspend
+}
+EOF
+            print_success "hypridle config created"
+        fi
+
+        # Add hypridle to Hyprland autostart if not already there
+        local env_conf="$HOME/.config/hypr/env.conf"
+        if [ -f "$env_conf" ]; then
+            if ! grep -q "exec-once = hypridle" "$env_conf"; then
+                print_status "Adding hypridle to Hyprland autostart..."
+                echo "exec-once = hypridle" >> "$env_conf"
+                print_success "hypridle added to autostart"
+            fi
+        fi
+    fi
+}
+
+# Install clipboard persistence (optional)
+install_clipboard_persistence() {
+    local aur_helper
+    aur_helper=$(get_aur_helper)
+
+    # Check for existing clipboard managers
+    local clipboard_tools=(wl-clip-persist cliphist clipman copyq gpaste klipper parcellite)
+    local has_clipboard=false
+    local existing_tool=""
+
+    for tool in "${clipboard_tools[@]}"; do
+        if command -v "$tool" &> /dev/null || pacman -Qq "$tool" &> /dev/null 2>&1; then
+            has_clipboard=true
+            existing_tool="$tool"
+            break
+        fi
+    done
+
+    if [ "$has_clipboard" = true ]; then
+        print_status "Clipboard manager ($existing_tool) already installed"
+        return 0
+    fi
+
+    echo ""
+    echo -e "${BLUE}Clipboard Persistence${NC}"
+    echo "  Keeps clipboard contents when source app closes"
+    echo "  (No UI, runs silently in background)"
+    echo ""
+    read -p "Install clipboard persistence? [y/N] " -n 1 -r
+    echo ""
+
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_status "Skipping clipboard persistence"
+        return 0
+    fi
+
+    print_status "Installing wl-clip-persist from AUR..."
+    "$aur_helper" -S --needed --noconfirm wl-clip-persist
+    print_success "wl-clip-persist installed"
+
+    # Add to Hyprland autostart if not already there
+    local env_conf="$HOME/.config/hypr/env.conf"
+    if [ -f "$env_conf" ]; then
+        if ! grep -q "wl-clip-persist" "$env_conf"; then
+            print_status "Adding wl-clip-persist to autostart..."
+            echo "exec-once = wl-clip-persist --clipboard both" >> "$env_conf"
+            print_success "Clipboard persistence configured"
+        fi
+    fi
+}
+
 # Install optional TUI enhancements
 install_tui_enhancements() {
     local suminami_dir="$HOME/.config/suminami"
@@ -559,6 +819,12 @@ main() {
 
     # Install basic apps (image viewer, text editor) if missing
     install_basic_apps
+
+    # Install screen locker and idle manager
+    install_screen_locker
+
+    # Optional: Clipboard persistence
+    install_clipboard_persistence
 
     # Optional: Install SDDM theme
     install_sddm_theme
