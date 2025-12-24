@@ -33,20 +33,32 @@ get_encoder() {
 
 # Stop recording
 stop_recording() {
+    local stopped=false
+
     if [ -f "$PIDFILE" ]; then
         PID=$(cat "$PIDFILE")
         if kill -0 "$PID" 2>/dev/null; then
             kill -SIGINT "$PID"
-            wait "$PID" 2>/dev/null
-
-            # Get the recording file from the process
-            RECORDING=$(ps -p "$PID" -o args= 2>/dev/null | grep -oP '(?<=-f )[^ ]+' || echo "")
-
-            rm -f "$PIDFILE"
-            notify-send -t 3000 "Recording Stopped" "Saved to ~/Videos/"
-            return 0
+            # Give it a moment to finish writing
+            sleep 0.3
+            # Force kill if still running
+            kill -0 "$PID" 2>/dev/null && kill -SIGKILL "$PID"
+            stopped=true
         fi
         rm -f "$PIDFILE"
+    fi
+
+    # Fallback: kill any orphaned wf-recorder processes
+    if pgrep -x wf-recorder >/dev/null 2>&1; then
+        pkill -SIGINT -x wf-recorder
+        sleep 0.3
+        pkill -SIGKILL -x wf-recorder 2>/dev/null
+        stopped=true
+    fi
+
+    if [ "$stopped" = true ]; then
+        notify-send -t 3000 "Recording Stopped" "Saved to ~/Videos/"
+        return 0
     fi
     return 1
 }
@@ -58,14 +70,14 @@ start_recording() {
     local filename="$RECORDINGS_DIR/recording-$timestamp.mp4"
     local encoder=$(get_encoder)
 
-    # Build wf-recorder command
-    local cmd="wf-recorder"
+    # Build wf-recorder command as array (avoids eval subshell PID issues)
+    local cmd=(wf-recorder)
 
     # Add encoder
     if [ "$encoder" = "h264_vaapi" ]; then
-        cmd="$cmd -c $encoder -d /dev/dri/renderD128"
+        cmd+=(-c "$encoder" -d /dev/dri/renderD128)
     else
-        cmd="$cmd -c $encoder"
+        cmd+=(-c "$encoder")
     fi
 
     # Add region selection if requested
@@ -75,14 +87,14 @@ start_recording() {
             notify-send -t 2000 "Recording" "Cancelled"
             return 1
         fi
-        cmd="$cmd -g \"$GEOMETRY\""
+        cmd+=(-g "$GEOMETRY")
     fi
 
     # Output file
-    cmd="$cmd -f \"$filename\""
+    cmd+=(-f "$filename")
 
-    # Start recording
-    eval "$cmd" &
+    # Start recording - array expansion gives us the actual wf-recorder PID
+    "${cmd[@]}" &
     echo $! > "$PIDFILE"
 
     # Notify with encoder info
