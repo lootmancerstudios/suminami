@@ -16,7 +16,7 @@ CHOICE=$(echo -e "$OPTIONS" | wofi --dmenu \
 
 case "$CHOICE" in
     *"Lock"*)
-        loginctl lock-session
+        hyprlock
         ;;
     *"Sleep"*)
         systemctl suspend
