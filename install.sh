@@ -1,8 +1,9 @@
 #!/bin/bash
 # Suminami Rice Installer
 # https://github.com/lootmancerstudios/suminami
-
-set -e
+#
+# Error handling: Critical operations (package install, git clone) check exit codes
+# explicitly. Non-critical operations (file cleanup, optional tools) may fail silently.
 
 # Colors
 RED='\033[0;31m'
@@ -52,11 +53,11 @@ check_base_tools() {
     fi
 }
 
-# Check internet connectivity
+# Check internet connectivity (uses HTTP, not ICMP which may be blocked)
 check_internet() {
     print_status "Checking internet connectivity..."
-    if ! ping -c 1 -W 3 archlinux.org &> /dev/null; then
-        if ! ping -c 1 -W 3 google.com &> /dev/null; then
+    if ! curl -s --head --max-time 5 https://archlinux.org >/dev/null 2>&1; then
+        if ! curl -s --head --max-time 5 https://github.com >/dev/null 2>&1; then
             print_error "No internet connection detected."
             print_error "Please connect to the internet and try again."
             exit 1
@@ -137,11 +138,16 @@ configure_gpu() {
 }
 
 # Create NVIDIA configuration file
+# Writes to user-local directory (not inside suminami repo) to avoid git conflicts
 create_nvidia_config() {
-    local nvidia_conf="$HOME/.config/hypr/nvidia.conf"
+    local nvidia_dir="$HOME/.config/hypr-local"
+    local nvidia_conf="$nvidia_dir/nvidia.conf"
     local hyprland_conf="$HOME/.config/hypr/hyprland.conf"
 
     print_status "Creating NVIDIA configuration..."
+
+    # Create user-local hypr config directory (outside suminami repo)
+    mkdir -p "$nvidia_dir"
 
     # Create nvidia.conf
     cat > "$nvidia_conf" << 'EOF'
@@ -157,9 +163,6 @@ env = __GLX_VENDOR_LIBRARY_NAME,nvidia
 # Enable VRR/G-Sync (if supported)
 env = __GL_VRR_ALLOWED,1
 
-# Fix for some NVIDIA driver issues
-env = WLR_DRM_NO_ATOMIC,1
-
 # Use software cursor (fixes invisible/glitchy cursor)
 cursor:no_hardware_cursors = true
 EOF
@@ -171,13 +174,13 @@ EOF
         if ! grep -q "source.*nvidia.conf" "$hyprland_conf"; then
             # Find the line with monitors.conf and add nvidia.conf after it
             if grep -q "source.*monitors.conf" "$hyprland_conf"; then
-                sed -i '/source.*monitors.conf/a source = ~/.config/hypr/nvidia.conf' "$hyprland_conf"
+                sed -i '/source.*monitors.conf/a source = ~/.config/hypr-local/nvidia.conf' "$hyprland_conf"
                 print_success "Added nvidia.conf to hyprland.conf"
             else
                 # Fallback: append to end of file
                 echo "" >> "$hyprland_conf"
-                echo "# NVIDIA configuration" >> "$hyprland_conf"
-                echo "source = ~/.config/hypr/nvidia.conf" >> "$hyprland_conf"
+                echo "# NVIDIA configuration (user-local)" >> "$hyprland_conf"
+                echo "source = ~/.config/hypr-local/nvidia.conf" >> "$hyprland_conf"
                 print_success "Appended nvidia.conf to hyprland.conf"
             fi
         else
@@ -195,6 +198,7 @@ EOF
 
 # Get or install AUR helper
 # Handles the edge case where AUR helper breaks after system update
+# Note: All status messages go to stderr to avoid polluting stdout return value
 get_aur_helper() {
     local helper=""
 
@@ -206,8 +210,8 @@ get_aur_helper() {
                 helper="$h"
                 break
             else
-                print_warning "$h is installed but broken (likely libalpm mismatch)"
-                print_status "Rebuilding $h..."
+                print_warning "$h is installed but broken (likely libalpm mismatch)" >&2
+                print_status "Rebuilding $h..." >&2
                 rebuild_aur_helper "$h"
                 if "$h" --version &> /dev/null; then
                     helper="$h"
@@ -219,7 +223,7 @@ get_aur_helper() {
 
     # If no working AUR helper, install yay-bin
     if [ -z "$helper" ]; then
-        print_status "No AUR helper found. Installing yay..."
+        print_status "No AUR helper found. Installing yay..." >&2
         install_yay
         helper="yay"
     fi
@@ -233,6 +237,9 @@ rebuild_aur_helper() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
 
+    # Cleanup on exit or error
+    trap 'rm -rf "$tmp_dir"' EXIT
+
     cd "$tmp_dir"
     git clone "https://aur.archlinux.org/${helper}-bin.git" 2>/dev/null || \
         git clone "https://aur.archlinux.org/${helper}.git"
@@ -243,6 +250,9 @@ rebuild_aur_helper() {
 
     makepkg -si --noconfirm
     cd /
+
+    # Clear trap and cleanup
+    trap - EXIT
     rm -rf "$tmp_dir"
 }
 
@@ -251,14 +261,30 @@ install_yay() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
 
-    print_status "Building yay-bin from AUR..."
+    # Cleanup on exit or error
+    trap 'rm -rf "$tmp_dir"' EXIT
+
+    print_status "Building yay-bin from AUR..." >&2
     cd "$tmp_dir"
-    git clone https://aur.archlinux.org/yay-bin.git
+
+    if ! git clone https://aur.archlinux.org/yay-bin.git; then
+        print_error "Failed to clone yay-bin from AUR" >&2
+        exit 1
+    fi
+
     cd yay-bin
-    makepkg -si --noconfirm
+
+    if ! makepkg -si --noconfirm; then
+        print_error "Failed to build yay" >&2
+        exit 1
+    fi
+
     cd /
+
+    # Clear trap and cleanup
+    trap - EXIT
     rm -rf "$tmp_dir"
-    print_success "yay installed successfully"
+    print_success "yay installed successfully" >&2
 }
 
 # Core dependencies (from official repos)
@@ -314,39 +340,16 @@ AUR_DEPS=(
     bibata-cursor-theme-bin
 )
 
-# Remove KDE bloat if Dolphin is installed
-cleanup_kde_bloat() {
-    if pacman -Qq dolphin &> /dev/null; then
-        print_status "Removing Dolphin and KDE dependencies (replacing with Thunar)..."
-        sudo pacman -Rns --noconfirm dolphin 2>/dev/null || true
-    fi
-
-    # Remove other KDE theming bloat if present
-    local kde_bloat=(kvantum qt5ct qt6ct breeze kdecoration frameworkintegration)
-    local to_remove=()
-
-    for pkg in "${kde_bloat[@]}"; do
-        if pacman -Qq "$pkg" &> /dev/null; then
-            to_remove+=("$pkg")
-        fi
-    done
-
-    if [ ${#to_remove[@]} -gt 0 ]; then
-        print_status "Removing unnecessary Qt/KDE theming packages..."
-        sudo pacman -Rns --noconfirm "${to_remove[@]}" 2>/dev/null || true
-    fi
-}
-
 # Install packages
 install_packages() {
     local aur_helper
     aur_helper=$(get_aur_helper)
 
-    # Clean up KDE bloat first
-    cleanup_kde_bloat
-
     print_status "Updating system..."
-    sudo pacman -Syu --noconfirm
+    if ! sudo pacman -Syu --noconfirm; then
+        print_error "System update failed"
+        exit 1
+    fi
 
     # Re-check AUR helper after system update (libalpm might have changed)
     if ! "$aur_helper" --version &> /dev/null; then
@@ -355,12 +358,18 @@ install_packages() {
     fi
 
     print_status "Installing core dependencies..."
-    sudo pacman -S --needed --noconfirm "${PACMAN_DEPS[@]}"
+    if ! sudo pacman -S --needed --noconfirm "${PACMAN_DEPS[@]}"; then
+        print_error "Failed to install core dependencies"
+        exit 1
+    fi
 
     # Only install AUR packages if there are any
     if [ ${#AUR_DEPS[@]} -gt 0 ]; then
         print_status "Installing AUR packages (this may take a few minutes)..."
-        "$aur_helper" -S --needed --noconfirm "${AUR_DEPS[@]}"
+        if ! "$aur_helper" -S --needed --noconfirm "${AUR_DEPS[@]}"; then
+            print_error "Failed to install AUR packages"
+            exit 1
+        fi
     fi
 
     print_success "All dependencies installed"
@@ -394,11 +403,18 @@ setup_suminami() {
 
     if [ -d "$suminami_dir" ]; then
         print_status "Updating existing suminami installation..."
-        cd "$suminami_dir"
-        git pull
+        if ! git -C "$suminami_dir" pull; then
+            print_error "Failed to update suminami repository"
+            print_error "You may have local changes. Try: cd $suminami_dir && git status"
+            exit 1
+        fi
     else
         print_status "Cloning suminami..."
-        git clone https://github.com/lootmancerstudios/suminami.git "$suminami_dir"
+        if ! git clone https://github.com/lootmancerstudios/suminami.git "$suminami_dir"; then
+            print_error "Failed to clone suminami repository"
+            print_error "Check your internet connection and try again"
+            exit 1
+        fi
     fi
 
     print_success "Suminami repository ready"
@@ -540,151 +556,6 @@ install_limine_theme() {
     else
         print_status "Skipping Limine theme"
     fi
-}
-
-# Configure quiet boot (hide kernel messages during boot)
-# Supports Limine, systemd-boot, and GRUB
-configure_quiet_boot() {
-    local bootloader=""
-    local config_file=""
-
-    # Detect bootloader
-    # Check Limine first
-    for loc in "/boot/limine/limine.conf" "/boot/limine.conf" "/boot/EFI/limine/limine.conf" "/boot/efi/limine/limine.conf"; do
-        if [ -f "$loc" ]; then
-            bootloader="limine"
-            config_file="$loc"
-            break
-        fi
-    done
-
-    # Check systemd-boot
-    if [ -z "$bootloader" ] && [ -d "/boot/loader/entries" ]; then
-        local entries=(/boot/loader/entries/*.conf)
-        if [ -f "${entries[0]}" ]; then
-            bootloader="systemd-boot"
-            config_file="/boot/loader/entries"
-        fi
-    fi
-
-    # Check GRUB
-    if [ -z "$bootloader" ] && [ -f "/etc/default/grub" ]; then
-        bootloader="grub"
-        config_file="/etc/default/grub"
-    fi
-
-    if [ -z "$bootloader" ]; then
-        # No supported bootloader detected
-        return 0
-    fi
-
-    echo ""
-    echo -e "${BLUE}Quiet Boot${NC}"
-    echo "  Detected bootloader: $bootloader"
-    echo "  Hides kernel messages during boot for a cleaner experience"
-    echo ""
-    read -p "Enable quiet boot? [y/N] " -n 1 -r
-    echo ""
-
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_status "Skipping quiet boot"
-        return 0
-    fi
-
-    case "$bootloader" in
-        limine)
-            configure_quiet_boot_limine "$config_file"
-            ;;
-        systemd-boot)
-            configure_quiet_boot_systemd "$config_file"
-            ;;
-        grub)
-            configure_quiet_boot_grub "$config_file"
-            ;;
-    esac
-}
-
-# Quiet boot for Limine
-configure_quiet_boot_limine() {
-    local conf="$1"
-
-    # Check if already configured
-    if grep -q "quiet loglevel=" "$conf"; then
-        print_status "Quiet boot already configured"
-        return 0
-    fi
-
-    print_status "Backing up $conf..."
-    sudo cp "$conf" "${conf}.backup"
-
-    print_status "Enabling quiet boot for Limine..."
-    sudo sed -i '/^[[:space:]]*cmdline:/ {
-        /quiet loglevel=/! s/$/ quiet loglevel=3/
-    }' "$conf"
-
-    print_success "Quiet boot enabled"
-    echo "  Backup: ${conf}.backup"
-}
-
-# Quiet boot for systemd-boot
-configure_quiet_boot_systemd() {
-    local entries_dir="$1"
-
-    print_status "Enabling quiet boot for systemd-boot..."
-
-    for entry in "$entries_dir"/*.conf; do
-        [ -f "$entry" ] || continue
-
-        # Check if already configured
-        if grep -q "quiet loglevel=" "$entry"; then
-            print_status "$(basename "$entry"): already configured"
-            continue
-        fi
-
-        # Backup
-        sudo cp "$entry" "${entry}.backup"
-
-        # Add quiet loglevel=3 to options line
-        sudo sed -i '/^options/ {
-            /quiet loglevel=/! s/$/ quiet loglevel=3/
-        }' "$entry"
-
-        print_success "$(basename "$entry"): quiet boot enabled"
-    done
-
-    echo "  Backups saved with .backup extension"
-}
-
-# Quiet boot for GRUB
-configure_quiet_boot_grub() {
-    local conf="$1"
-
-    # Check if already configured
-    if grep -q 'GRUB_CMDLINE_LINUX_DEFAULT=.*quiet.*loglevel=' "$conf"; then
-        print_status "Quiet boot already configured"
-        return 0
-    fi
-
-    print_status "Backing up $conf..."
-    sudo cp "$conf" "${conf}.backup"
-
-    print_status "Enabling quiet boot for GRUB..."
-
-    # Add quiet loglevel=3 to GRUB_CMDLINE_LINUX_DEFAULT
-    # Handle both empty and non-empty cases
-    if grep -q 'GRUB_CMDLINE_LINUX_DEFAULT=""' "$conf"; then
-        # Empty - just add the parameters
-        sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=""/GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3"/' "$conf"
-    else
-        # Non-empty - append to existing
-        sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="\([^"]*\)"/GRUB_CMDLINE_LINUX_DEFAULT="\1 quiet loglevel=3"/' "$conf"
-    fi
-
-    print_status "Regenerating GRUB config..."
-    sudo grub-mkconfig -o /boot/grub/grub.cfg
-
-    print_success "Quiet boot enabled"
-    echo "  Backup: ${conf}.backup"
 }
 
 # Install fetch tool (fastfetch or neofetch config)
@@ -978,9 +849,13 @@ main() {
     # Confirm before proceeding
     confirm_install
 
-    backup_configs
     install_packages
+
+    # Clone/update suminami BEFORE backup - if clone fails, user keeps their configs
     setup_suminami
+
+    # Now safe to backup existing configs (suminami is ready)
+    backup_configs
 
     # Configure GPU (NVIDIA detection)
     configure_gpu
@@ -1012,9 +887,6 @@ main() {
 
     # Optional: Install Limine theme (if detected)
     install_limine_theme
-
-    # Optional: Configure quiet boot (for any bootloader)
-    configure_quiet_boot
 
     # Optional: Install TUI enhancements
     install_tui_enhancements
