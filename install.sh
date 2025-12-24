@@ -529,6 +529,151 @@ install_limine_theme() {
     fi
 }
 
+# Configure quiet boot (hide kernel messages during boot)
+# Supports Limine, systemd-boot, and GRUB
+configure_quiet_boot() {
+    local bootloader=""
+    local config_file=""
+
+    # Detect bootloader
+    # Check Limine first
+    for loc in "/boot/limine/limine.conf" "/boot/limine.conf" "/boot/EFI/limine/limine.conf" "/boot/efi/limine/limine.conf"; do
+        if [ -f "$loc" ]; then
+            bootloader="limine"
+            config_file="$loc"
+            break
+        fi
+    done
+
+    # Check systemd-boot
+    if [ -z "$bootloader" ] && [ -d "/boot/loader/entries" ]; then
+        local entries=(/boot/loader/entries/*.conf)
+        if [ -f "${entries[0]}" ]; then
+            bootloader="systemd-boot"
+            config_file="/boot/loader/entries"
+        fi
+    fi
+
+    # Check GRUB
+    if [ -z "$bootloader" ] && [ -f "/etc/default/grub" ]; then
+        bootloader="grub"
+        config_file="/etc/default/grub"
+    fi
+
+    if [ -z "$bootloader" ]; then
+        # No supported bootloader detected
+        return 0
+    fi
+
+    echo ""
+    echo -e "${BLUE}Quiet Boot${NC}"
+    echo "  Detected bootloader: $bootloader"
+    echo "  Hides kernel messages during boot for a cleaner experience"
+    echo ""
+    read -p "Enable quiet boot? [y/N] " -n 1 -r
+    echo ""
+
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_status "Skipping quiet boot"
+        return 0
+    fi
+
+    case "$bootloader" in
+        limine)
+            configure_quiet_boot_limine "$config_file"
+            ;;
+        systemd-boot)
+            configure_quiet_boot_systemd "$config_file"
+            ;;
+        grub)
+            configure_quiet_boot_grub "$config_file"
+            ;;
+    esac
+}
+
+# Quiet boot for Limine
+configure_quiet_boot_limine() {
+    local conf="$1"
+
+    # Check if already configured
+    if grep -q "quiet loglevel=" "$conf"; then
+        print_status "Quiet boot already configured"
+        return 0
+    fi
+
+    print_status "Backing up $conf..."
+    sudo cp "$conf" "${conf}.backup"
+
+    print_status "Enabling quiet boot for Limine..."
+    sudo sed -i '/^[[:space:]]*cmdline:/ {
+        /quiet loglevel=/! s/$/ quiet loglevel=3/
+    }' "$conf"
+
+    print_success "Quiet boot enabled"
+    echo "  Backup: ${conf}.backup"
+}
+
+# Quiet boot for systemd-boot
+configure_quiet_boot_systemd() {
+    local entries_dir="$1"
+
+    print_status "Enabling quiet boot for systemd-boot..."
+
+    for entry in "$entries_dir"/*.conf; do
+        [ -f "$entry" ] || continue
+
+        # Check if already configured
+        if grep -q "quiet loglevel=" "$entry"; then
+            print_status "$(basename "$entry"): already configured"
+            continue
+        fi
+
+        # Backup
+        sudo cp "$entry" "${entry}.backup"
+
+        # Add quiet loglevel=3 to options line
+        sudo sed -i '/^options/ {
+            /quiet loglevel=/! s/$/ quiet loglevel=3/
+        }' "$entry"
+
+        print_success "$(basename "$entry"): quiet boot enabled"
+    done
+
+    echo "  Backups saved with .backup extension"
+}
+
+# Quiet boot for GRUB
+configure_quiet_boot_grub() {
+    local conf="$1"
+
+    # Check if already configured
+    if grep -q 'GRUB_CMDLINE_LINUX_DEFAULT=.*quiet.*loglevel=' "$conf"; then
+        print_status "Quiet boot already configured"
+        return 0
+    fi
+
+    print_status "Backing up $conf..."
+    sudo cp "$conf" "${conf}.backup"
+
+    print_status "Enabling quiet boot for GRUB..."
+
+    # Add quiet loglevel=3 to GRUB_CMDLINE_LINUX_DEFAULT
+    # Handle both empty and non-empty cases
+    if grep -q 'GRUB_CMDLINE_LINUX_DEFAULT=""' "$conf"; then
+        # Empty - just add the parameters
+        sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=""/GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3"/' "$conf"
+    else
+        # Non-empty - append to existing
+        sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="\([^"]*\)"/GRUB_CMDLINE_LINUX_DEFAULT="\1 quiet loglevel=3"/' "$conf"
+    fi
+
+    print_status "Regenerating GRUB config..."
+    sudo grub-mkconfig -o /boot/grub/grub.cfg
+
+    print_success "Quiet boot enabled"
+    echo "  Backup: ${conf}.backup"
+}
+
 # Install fetch tool (fastfetch or neofetch config)
 install_fetch_tool() {
     local suminami_dir="$HOME/.config/suminami"
@@ -1016,6 +1161,9 @@ main() {
 
     # Optional: Install Limine theme (if detected)
     install_limine_theme
+
+    # Optional: Configure quiet boot (for any bootloader)
+    configure_quiet_boot
 
     # Optional: Install TUI enhancements
     install_tui_enhancements
