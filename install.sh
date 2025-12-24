@@ -266,6 +266,7 @@ PACMAN_DEPS=(
     hyprland
     hyprpaper
     xdg-desktop-portal-hyprland
+    xdg-desktop-portal-gtk
     waybar
     kitty
     rofi-wayland
