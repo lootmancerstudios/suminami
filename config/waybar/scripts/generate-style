@@ -9,7 +9,7 @@ WAYBAR_DIR="$HOME/.config/waybar"
 CONFIG_FILE="$WAYBAR_DIR/suminami.conf"
 STYLE_FILE="$WAYBAR_DIR/style.css"
 SCALE_FILE="$WAYBAR_DIR/scale.css"
-WOFI_DIR="$HOME/.config/wofi"
+ROFI_DIR="$HOME/.config/rofi"
 
 # ─────────────────────────────────────────────────────────────────────
 # Read configuration
@@ -92,9 +92,7 @@ if [ "$width" -lt 1600 ]; then
     icon_size="14"
     launcher_size="14px"
     launcher_padding="0 12px 0 16px"
-    wofi_font="11px"
-    wofi_width="420"
-    wofi_height="400"
+    rofi_font="11"
 elif [ "$width" -lt 1920 ]; then
     tier="medium"
     font_size="12px"
@@ -102,9 +100,7 @@ elif [ "$width" -lt 1920 ]; then
     icon_size="15"
     launcher_size="16px"
     launcher_padding="0 14px 0 18px"
-    wofi_font="12px"
-    wofi_width="450"
-    wofi_height="380"
+    rofi_font="12"
 elif [ "$width" -lt 2560 ]; then
     tier="large"
     font_size="13px"
@@ -112,9 +108,7 @@ elif [ "$width" -lt 2560 ]; then
     icon_size="16"
     launcher_size="18px"
     launcher_padding="0 14px 0 20px"
-    wofi_font="13px"
-    wofi_width="500"
-    wofi_height="420"
+    rofi_font="13"
 else
     tier="xlarge"
     font_size="14px"
@@ -122,9 +116,7 @@ else
     icon_size="18"
     launcher_size="20px"
     launcher_padding="0 16px 0 22px"
-    wofi_font="14px"
-    wofi_width="550"
-    wofi_height="480"
+    rofi_font="14"
 fi
 
 # ─────────────────────────────────────────────────────────────────────
@@ -199,135 +191,144 @@ sed -i "s/\"height\": [0-9]*/\"height\": $bar_height/" "$WAYBAR_DIR/config.jsonc
 sed -i "s/\"icon-size\": [0-9]*/\"icon-size\": $icon_size/" "$WAYBAR_DIR/config.jsonc"
 
 # ─────────────────────────────────────────────────────────────────────
-# Generate wofi config
+# Generate rofi config and theme
 # ─────────────────────────────────────────────────────────────────────
-mkdir -p "$WOFI_DIR"
+mkdir -p "$ROFI_DIR"
 
-cat > "$WOFI_DIR/config" << EOF
-## SumiNami Bar - Wofi config
-## Auto-generated for ${width}px ($tier tier)
-
-# Appearance
-width=$wofi_width
-lines=10
-prompt=Search...
-image_size=24
-columns=1
-allow_images=true
-hide_scroll=true
-term=kitty
-
-# Behavior
-allow_markup=true
-insensitive=true
-matching=fuzzy
-
-# Position
-location=center
-EOF
-
-# ─────────────────────────────────────────────────────────────────────
-# Generate wofi style
-# ─────────────────────────────────────────────────────────────────────
-# Get additional colors for wofi
-bg_input=$(get_color "sumiInk2") || bg_input="#1a1a22"
+# Get additional colors for rofi
 bg_hover=$(get_color "sumiInk4") || bg_hover="#2A2A37"
 muted=$(get_color "sumiInk6") || muted="#54546D"
-
-# Use semantic module-clock color for accent (WCAG compliant on light themes)
 accent_color=$(get_color "module-clock") || accent_color="$accent"
+error_color=$(get_color "state-critical") || error_color="#E82424"
 
-cat > "$WOFI_DIR/style.css" << EOF
-/* SumiNami Bar - Wofi theme ($color_scheme) */
+# Main config
+cat > "$ROFI_DIR/config.rasi" << EOF
+/* Rofi config - SumiNami */
+/* Auto-generated for ${width}px ($tier tier) */
+configuration {
+    modi: "drun,run";
+    show-icons: true;
+    icon-theme: "Papirus";
+    terminal: "kitty";
+    font: "JetBrainsMono Nerd Font ${rofi_font}";
+    drun-display-format: "{name}";
+    disable-history: false;
+    sidebar-mode: false;
+    cycle: true;
+    click-to-exit: true;
+}
+
+@theme "suminami"
+EOF
+
+# Convert hex to rgba for 96% opacity background
+bg_hex="${bg_color#\#}"
+bg_r=$((16#${bg_hex:0:2}))
+bg_g=$((16#${bg_hex:2:2}))
+bg_b=$((16#${bg_hex:4:2}))
+
+# Theme file
+cat > "$ROFI_DIR/suminami.rasi" << EOF
+/* SumiNami Rofi Theme - $color_scheme */
 /* Auto-generated for ${width}px ($tier tier) */
 
 * {
-    font-family: "JetBrainsMono Nerd Font", monospace;
-    font-size: $wofi_font;
-    font-weight: $font_weight;
-    text-shadow: none;
-    -gtk-icon-shadow: none;
-    box-shadow: none;
+    bg:           rgba($bg_r, $bg_g, $bg_b, 96%);
+    bg-alt:       $bg_hover;
+    fg:           $fg_color;
+    fg-alt:       $muted;
+    accent:       $accent_color;
+    urgent:       $error_color;
+    border-grey:  #dddddd;
+
+    background-color: transparent;
+    text-color: @fg;
+    margin: 0;
+    padding: 0;
+    spacing: 0;
 }
 
 window {
-    background-color: alpha($bg_color, 0.96);
-    border: 1px solid #dddddd;
+    background-color: @bg;
+    border: 1px;
+    border-color: @border-grey;
     border-radius: 0;
-    box-shadow: none;
-}
-
-#input {
-    background-color: $bg_input;
-    border: 1px solid #dddddd;
-    border-radius: 0;
-    color: $fg_color;
-    padding: 12px 16px;
-    margin: 0;
-}
-
-#input:focus {
-    border-color: $accent_color;
-}
-
-#inner-box {
-    margin: 0;
-}
-
-#outer-box {
-    margin: 0;
+    width: 450px;
     padding: 12px;
 }
 
-#scroll {
-    margin: 0;
-    margin-top: 8px;
+mainbox {
+    children: [inputbar, listview];
+    spacing: 8px;
 }
 
-#text {
-    color: $fg_color;
-    padding: 6px 0;
-    text-shadow: none;
+inputbar {
+    background-color: @bg-alt;
+    border: 1px;
+    border-color: @border-grey;
+    border-radius: 0;
+    padding: 8px 12px;
+    children: [prompt, entry];
+    spacing: 8px;
 }
 
-#text:selected {
-    color: $fg_color;
-    text-shadow: none;
+prompt {
+    text-color: @accent;
 }
 
-#entry {
+entry {
+    placeholder: "Search...";
+    placeholder-color: @fg-alt;
+}
+
+listview {
+    lines: 8;
+    columns: 1;
+    fixed-height: false;
+    scrollbar: false;
+    spacing: 2px;
+}
+
+element {
     padding: 8px 14px;
     border-radius: 0;
-    margin: 2px 0;
+    spacing: 8px;
 }
 
-#entry:selected {
-    background-color: alpha($accent_color, 0.15);
-    border: none;
-    outline: none;
-}
-
-#entry:hover {
-    background-color: $bg_hover;
-}
-
-#entry:selected #text {
-    color: $accent_color;
-}
-
-scrollbar {
+element normal.normal {
     background-color: transparent;
 }
 
-scrollbar slider {
-    background-color: #dddddd;
-    border-radius: 0;
-    min-width: 6px;
-    min-height: 20px;
+element normal.urgent {
+    text-color: @urgent;
 }
 
-scrollbar slider:hover {
-    background-color: $muted;
+element normal.active {
+    text-color: @accent;
+}
+
+element selected.normal {
+    background-color: rgba($bg_r, $bg_g, $bg_b, 50%);
+    text-color: @accent;
+}
+
+element selected.urgent {
+    background-color: @urgent;
+    text-color: @bg;
+}
+
+element selected.active {
+    background-color: @accent;
+    text-color: @bg;
+}
+
+element-icon {
+    size: 24px;
+}
+
+element-text {
+    text-color: inherit;
+    vertical-align: 0.5;
 }
 EOF
 

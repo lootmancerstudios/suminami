@@ -3,16 +3,14 @@
 
 OPTIONS="󰌾  Lock
 󰤄  Sleep
+󰗽  Log Out
 󰜉  Restart
-󰐥  Shutdown
-󰗽  Log Out"
+󰐥  Shutdown"
 
-CHOICE=$(echo -e "$OPTIONS" | wofi --dmenu \
-    --hide-search \
-    --width 320 \
-    --lines 5 \
-    --cache-file /dev/null \
-    --columns 1)
+CHOICE=$(echo -e "$OPTIONS" | rofi -dmenu -cycle \
+    -theme-str 'inputbar { enabled: false; }' \
+    -theme-str 'window { width: 320px; }' \
+    -theme-str 'listview { lines: 5; }')
 
 case "$CHOICE" in
     *"Lock"*)

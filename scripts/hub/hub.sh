@@ -10,18 +10,16 @@ OPTIONS="󰀻  Apps
 󰋗  Help
 󰐥  System"
 
-# Show menu
-CHOICE=$(echo -e "$OPTIONS" | wofi --dmenu \
-    --hide-search \
-    --width 320 \
-    --lines 5 \
-    --cache-file /dev/null \
-    --columns 1)
+# Show menu (rofi with cycle enabled, no search bar)
+CHOICE=$(echo -e "$OPTIONS" | rofi -dmenu -cycle \
+    -theme-str 'inputbar { enabled: false; }' \
+    -theme-str 'window { width: 320px; }' \
+    -theme-str 'listview { lines: 5; }')
 
 # Handle selection
 case "$CHOICE" in
     *"Apps"*)
-        wofi --show drun
+        rofi -show drun
         ;;
     *"Style"*)
         "$SCRIPTS_DIR/style.sh"

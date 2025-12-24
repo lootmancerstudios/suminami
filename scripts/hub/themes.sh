@@ -14,12 +14,9 @@ OPTIONS="󰉼  Kanagawa
 󰉼  Catppuccin Latte
 󰉼  Gruvbox Dark"
 
-CHOICE=$(echo -e "$OPTIONS" | wofi --dmenu \
-    --hide-search \
-    --width 320 \
-    --height 360 \
-    --cache-file /dev/null \
-    --columns 1)
+CHOICE=$(echo -e "$OPTIONS" | rofi -dmenu -cycle \
+    -theme-str 'inputbar { enabled: false; }' \
+    -theme-str 'window { width: 320px; height: 360px; }')
 
 case "$CHOICE" in
     *"Kanagawa Lotus"*)
