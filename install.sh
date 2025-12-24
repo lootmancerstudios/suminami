@@ -16,12 +16,181 @@ print_success() { echo -e "${GREEN}[+]${NC} $1"; }
 print_warning() { echo -e "${YELLOW}[!]${NC} $1"; }
 print_error() { echo -e "${RED}[-]${NC} $1"; }
 
+# Check if running as root (should not)
+check_not_root() {
+    if [ "$EUID" -eq 0 ]; then
+        print_error "Do not run this script as root or with sudo."
+        print_error "The script will ask for sudo when needed."
+        exit 1
+    fi
+}
+
 # Check if running on Arch-based system
 check_arch() {
     if ! command -v pacman &> /dev/null; then
         print_error "This installer requires an Arch-based distribution."
         exit 1
     fi
+}
+
+# Check for required base tools
+check_base_tools() {
+    local missing=()
+
+    if ! command -v git &> /dev/null; then
+        missing+=("git")
+    fi
+
+    # Check for base-devel (needed for AUR)
+    if ! pacman -Qq base-devel &> /dev/null 2>&1; then
+        missing+=("base-devel")
+    fi
+
+    if [ ${#missing[@]} -gt 0 ]; then
+        print_status "Installing required base tools: ${missing[*]}"
+        sudo pacman -S --needed --noconfirm "${missing[@]}"
+    fi
+}
+
+# Check internet connectivity
+check_internet() {
+    print_status "Checking internet connectivity..."
+    if ! ping -c 1 -W 3 archlinux.org &> /dev/null; then
+        if ! ping -c 1 -W 3 google.com &> /dev/null; then
+            print_error "No internet connection detected."
+            print_error "Please connect to the internet and try again."
+            exit 1
+        fi
+    fi
+    print_success "Internet connection OK"
+}
+
+# Show summary and confirm before installing
+confirm_install() {
+    echo ""
+    echo -e "${BLUE}The following will be installed/configured:${NC}"
+    echo ""
+    echo "  Core: Hyprland, Waybar, Wofi, Kitty, Dunst"
+    echo "  Apps: Firefox, Thunar, Yazi, btop"
+    echo "  Tools: Screenshots, notifications, media controls"
+    echo "  Theme: GTK themes, Papirus icons, Bibata cursor"
+    echo ""
+    echo "  Optional prompts will follow for:"
+    echo "    - Screen locker & idle management"
+    echo "    - Clipboard persistence"
+    echo "    - SDDM login theme"
+    echo "    - TUI enhancements"
+    echo ""
+    read -p "Proceed with installation? [Y/n] " -n 1 -r
+    echo ""
+
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        print_status "Installation cancelled."
+        exit 0
+    fi
+}
+
+# Detect and configure GPU (NVIDIA specifically)
+configure_gpu() {
+    local has_nvidia_hw=false
+    local has_nvidia_drv=false
+
+    print_status "Detecting GPU..."
+
+    # Detect NVIDIA hardware
+    if lspci | grep -iq nvidia; then
+        has_nvidia_hw=true
+    fi
+
+    # Check if NVIDIA proprietary driver is loaded
+    if lsmod | grep -q "^nvidia"; then
+        has_nvidia_drv=true
+    fi
+
+    # Handle NVIDIA
+    if [ "$has_nvidia_hw" = true ]; then
+        if [ "$has_nvidia_drv" = true ]; then
+            echo ""
+            echo -e "${BLUE}NVIDIA GPU Detected${NC}"
+            echo "  Proprietary driver is loaded"
+            echo "  Recommended: Apply NVIDIA-specific environment variables"
+            echo "  This fixes common issues (flickering, cursor, performance)"
+            echo ""
+            read -p "Apply NVIDIA configuration? [Y/n] " -n 1 -r
+            echo ""
+
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                create_nvidia_config
+            else
+                print_status "Skipping NVIDIA configuration"
+            fi
+        else
+            echo ""
+            print_warning "NVIDIA hardware detected but proprietary driver not loaded"
+            print_warning "You appear to be using nouveau (open-source driver)"
+            print_warning "For best Hyprland experience, consider installing nvidia or nvidia-dkms"
+            echo ""
+        fi
+    else
+        print_success "GPU detected (Intel/AMD) - no special configuration needed"
+    fi
+}
+
+# Create NVIDIA configuration file
+create_nvidia_config() {
+    local nvidia_conf="$HOME/.config/hypr/nvidia.conf"
+    local hyprland_conf="$HOME/.config/hypr/hyprland.conf"
+
+    print_status "Creating NVIDIA configuration..."
+
+    # Create nvidia.conf
+    cat > "$nvidia_conf" << 'EOF'
+# SumiNami NVIDIA Configuration
+# See: https://wiki.hypr.land/Nvidia/
+
+# Hardware acceleration
+env = LIBVA_DRIVER_NAME,nvidia
+
+# Required for XWayland apps
+env = __GLX_VENDOR_LIBRARY_NAME,nvidia
+
+# Enable VRR/G-Sync (if supported)
+env = __GL_VRR_ALLOWED,1
+
+# Fix for some NVIDIA driver issues
+env = WLR_DRM_NO_ATOMIC,1
+
+# Use software cursor (fixes invisible/glitchy cursor)
+cursor:no_hardware_cursors = true
+EOF
+
+    print_success "Created $nvidia_conf"
+
+    # Add source line to hyprland.conf if not already present
+    if [ -f "$hyprland_conf" ]; then
+        if ! grep -q "source.*nvidia.conf" "$hyprland_conf"; then
+            # Find the line with monitors.conf and add nvidia.conf after it
+            if grep -q "source.*monitors.conf" "$hyprland_conf"; then
+                sed -i '/source.*monitors.conf/a source = ~/.config/hypr/nvidia.conf' "$hyprland_conf"
+                print_success "Added nvidia.conf to hyprland.conf"
+            else
+                # Fallback: append to end of file
+                echo "" >> "$hyprland_conf"
+                echo "# NVIDIA configuration" >> "$hyprland_conf"
+                echo "source = ~/.config/hypr/nvidia.conf" >> "$hyprland_conf"
+                print_success "Appended nvidia.conf to hyprland.conf"
+            fi
+        else
+            print_status "nvidia.conf already sourced in hyprland.conf"
+        fi
+    fi
+
+    print_success "NVIDIA configuration applied"
+    echo ""
+    echo "  Note: If you experience issues, you may also need:"
+    echo "    - nvidia_drm.modeset=1 in kernel parameters"
+    echo "    - See: https://wiki.hypr.land/Nvidia/"
+    echo ""
 }
 
 # Get or install AUR helper
@@ -96,18 +265,22 @@ install_yay() {
 PACMAN_DEPS=(
     hyprland
     hyprpaper
+    xdg-desktop-portal-hyprland
     waybar
     kitty
     wofi
     dunst
     grim
     slurp
+    hyprshot
     wl-clipboard
     brightnessctl
     playerctl
     pamixer
+    pavucontrol
     libnotify
     ttf-jetbrains-mono-nerd
+    firefox
     jq
     socat
     qt6-declarative
@@ -800,10 +973,22 @@ main() {
     echo -e "${BLUE}╚══════════════════════════════════════╝${NC}"
     echo ""
 
+    # Pre-flight checks
+    check_not_root
     check_arch
+    check_internet
+    check_base_tools
+
+    # Confirm before proceeding
+    confirm_install
+
     backup_configs
     install_packages
     setup_suminami
+
+    # Configure GPU (NVIDIA detection)
+    configure_gpu
+
     create_symlinks
     install_gtk_themes
 
