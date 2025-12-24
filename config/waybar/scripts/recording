@@ -1,0 +1,19 @@
+#!/bin/bash
+# Recording indicator for Waybar
+# Shows a blinking red indicator when screen recording is active
+
+PIDFILE="/tmp/suminami-recording.pid"
+
+if [ -f "$PIDFILE" ]; then
+    pid=$(cat "$PIDFILE")
+    # Verify the process is actually running
+    if ps -p "$pid" > /dev/null 2>&1; then
+        echo '{"text": "󰑊 REC", "tooltip": "Screen recording in progress\nClick to stop", "class": "recording"}'
+    else
+        # Stale PID file, clean it up
+        rm -f "$PIDFILE"
+        echo '{"text": "", "tooltip": "", "class": ""}'
+    fi
+else
+    echo '{"text": "", "tooltip": "", "class": ""}'
+fi
