@@ -17,6 +17,26 @@ print_success() { echo -e "${GREEN}[+]${NC} $1"; }
 print_warning() { echo -e "${YELLOW}[!]${NC} $1"; }
 print_error() { echo -e "${RED}[-]${NC} $1"; }
 
+# Show help message
+show_help() {
+    echo "Suminami Rice Installer"
+    echo "https://github.com/lootmancerstudios/suminami"
+    echo ""
+    echo "Usage: ./install.sh [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help    Show this help message and exit"
+    echo ""
+    echo "Run without options for interactive installation."
+    echo ""
+    echo "The installer will:"
+    echo "  - Install Hyprland and required packages"
+    echo "  - Clone/update the suminami repository"
+    echo "  - Create symlinks for configs"
+    echo "  - Optionally install: screen locker, clipboard manager, SDDM theme"
+    echo ""
+}
+
 # Check if running as root (should not)
 check_not_root() {
     if [ "$EUID" -eq 0 ]; then
@@ -40,6 +60,10 @@ check_base_tools() {
 
     if ! command -v git &> /dev/null; then
         missing+=("git")
+    fi
+
+    if ! command -v curl &> /dev/null; then
+        missing+=("curl")
     fi
 
     # Check for base-devel (needed for AUR)
@@ -473,9 +497,8 @@ install_sddm_theme() {
     local theme_source="$suminami_dir/sddm/suminami"
     local theme_dest="/usr/share/sddm/themes/suminami"
 
-    # Check if SDDM is installed
+    # Check if SDDM is installed - skip silently if not
     if ! command -v sddm &> /dev/null; then
-        print_warning "SDDM not detected, skipping login theme"
         return 0
     fi
 
@@ -904,4 +927,20 @@ main() {
     echo ""
 }
 
-main "$@"
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            print_error "Unknown option: $1"
+            echo ""
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+main
