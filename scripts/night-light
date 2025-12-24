@@ -1,0 +1,13 @@
+#!/bin/bash
+# Night Light Toggle (gammastep)
+# Toggles warm screen color for reduced eye strain
+
+if pgrep -x gammastep > /dev/null; then
+    # Running - disable it
+    pkill gammastep
+    notify-send -t 2000 "Night Light" "Disabled"
+else
+    # Not running - enable it (4500K warm temperature)
+    gammastep -O 4500 &
+    notify-send -t 2000 "Night Light" "Enabled (4500K)"
+fi

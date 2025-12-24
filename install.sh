@@ -278,6 +278,8 @@ PACMAN_DEPS=(
     brightnessctl
     playerctl
     pamixer
+    hyprpicker
+    gammastep
     pavucontrol
     libnotify
     ttf-jetbrains-mono-nerd
