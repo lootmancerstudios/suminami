@@ -1,13 +1,98 @@
 #!/bin/bash
 # Night Light Toggle (gammastep)
-# Toggles warm screen color for reduced eye strain
+# Auto-adjusts screen warmth based on time of day
+# Uses timezone to estimate location for sunrise/sunset calculation
 
+# Temperature settings
+TEMP_DAY=6200    # Slightly warm (always noticeable)
+TEMP_NIGHT=4800  # Warm but not aggressive
+
+# Get coordinates from timezone
+get_location() {
+    local tz
+    tz=$(timedatectl show -p Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null || echo "UTC")
+
+    # Map timezones to approximate coordinates
+    case "$tz" in
+        # North America
+        America/Los_Angeles|America/Vancouver|America/Tijuana|US/Pacific|PST8PDT)
+            echo "34.0:-118.2" ;;  # LA area
+        America/Denver|America/Phoenix|America/Boise|US/Mountain|MST7MDT)
+            echo "39.7:-104.9" ;;  # Denver area
+        America/Chicago|America/Winnipeg|America/Mexico_City|US/Central|CST6CDT)
+            echo "41.8:-87.6" ;;   # Chicago/Central area
+        America/New_York|America/Toronto|America/Detroit|US/Eastern|EST5EDT)
+            echo "40.7:-74.0" ;;   # NYC area
+        America/Halifax|America/Puerto_Rico|Canada/Atlantic)
+            echo "44.6:-63.5" ;;   # Halifax area
+        America/Sao_Paulo|America/Buenos_Aires)
+            echo "-23.5:-46.6" ;;  # Sao Paulo area
+
+        # Europe
+        Europe/London|Europe/Dublin|Europe/Lisbon|GB|WET)
+            echo "51.5:-0.1" ;;    # London
+        Europe/Paris|Europe/Brussels|Europe/Amsterdam|CET)
+            echo "48.8:2.3" ;;     # Paris
+        Europe/Berlin|Europe/Vienna|Europe/Warsaw|Europe/Prague)
+            echo "52.5:13.4" ;;    # Berlin
+        Europe/Rome|Europe/Madrid|Europe/Zurich)
+            echo "41.9:12.5" ;;    # Rome
+        Europe/Stockholm|Europe/Oslo|Europe/Helsinki)
+            echo "59.3:18.0" ;;    # Stockholm
+        Europe/Moscow|Europe/Kiev)
+            echo "55.7:37.6" ;;    # Moscow
+        Europe/Athens|Europe/Istanbul)
+            echo "37.9:23.7" ;;    # Athens
+
+        # Asia
+        Asia/Tokyo|Asia/Seoul|Japan)
+            echo "35.7:139.7" ;;   # Tokyo
+        Asia/Shanghai|Asia/Hong_Kong|Asia/Taipei|Asia/Singapore|PRC)
+            echo "31.2:121.5" ;;   # Shanghai
+        Asia/Kolkata|Asia/Mumbai|Asia/Calcutta)
+            echo "19.0:72.8" ;;    # Mumbai
+        Asia/Dubai|Asia/Muscat)
+            echo "25.2:55.2" ;;    # Dubai
+        Asia/Jakarta|Asia/Bangkok)
+            echo "-6.2:106.8" ;;   # Jakarta
+        Asia/Manila)
+            echo "14.6:120.9" ;;   # Manila
+
+        # Oceania
+        Australia/Sydney|Australia/Melbourne|Australia/ACT)
+            echo "-33.9:151.2" ;;  # Sydney
+        Australia/Perth)
+            echo "-31.9:115.8" ;;  # Perth
+        Australia/Brisbane|Australia/Queensland)
+            echo "-27.4:153.0" ;;  # Brisbane
+        Pacific/Auckland|NZ)
+            echo "-36.8:174.7" ;;  # Auckland
+        Pacific/Honolulu|US/Hawaii)
+            echo "21.3:-157.8" ;;  # Honolulu
+
+        # Africa
+        Africa/Cairo)
+            echo "30.0:31.2" ;;    # Cairo
+        Africa/Johannesburg)
+            echo "-26.2:28.0" ;;   # Johannesburg
+        Africa/Lagos|Africa/Casablanca)
+            echo "6.5:3.3" ;;      # Lagos
+
+        # Default - mid-latitude northern hemisphere
+        *)
+            echo "40.0:-74.0" ;;
+    esac
+}
+
+# Toggle gammastep
 if pgrep -x gammastep > /dev/null; then
     # Running - disable it
     pkill gammastep
     notify-send -t 2000 "Night Light" "Disabled"
 else
-    # Not running - enable it (4500K warm temperature)
-    gammastep -O 4500 &
-    notify-send -t 2000 "Night Light" "Enabled (4500K)"
+    # Not running - enable with auto-adjusting temps
+    LOCATION=$(get_location)
+
+    gammastep -l "$LOCATION" -t "${TEMP_DAY}:${TEMP_NIGHT}" &
+    notify-send -t 2000 "Night Light" "Enabled (auto-adjusting)"
 fi
