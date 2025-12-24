@@ -109,6 +109,11 @@ else
     capacity=0
 fi
 
+# If battery is full, show 100% (it's at its maximum charge)
+if $full; then
+    capacity=100
+fi
+
 # Determine overall status and icon
 if $charging; then
     status_text="Charging"
