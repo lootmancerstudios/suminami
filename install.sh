@@ -280,6 +280,7 @@ PACMAN_DEPS=(
     pamixer
     hyprpicker
     gammastep
+    wf-recorder
     pavucontrol
     libnotify
     ttf-jetbrains-mono-nerd

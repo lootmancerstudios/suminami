@@ -1,0 +1,118 @@
+#!/bin/bash
+# Screen Recording Toggle (wf-recorder)
+# Auto-detects GPU for hardware acceleration with CPU fallback
+
+RECORDINGS_DIR="$HOME/Videos"
+PIDFILE="/tmp/suminami-recording.pid"
+
+# Ensure Videos directory exists
+mkdir -p "$RECORDINGS_DIR"
+
+# Detect best encoder
+get_encoder() {
+    # Check for NVIDIA GPU with driver loaded
+    if lspci | grep -iq nvidia && lsmod | grep -q "^nvidia"; then
+        # Verify nvenc is available
+        if ffmpeg -encoders 2>/dev/null | grep -q h264_nvenc; then
+            echo "h264_nvenc"
+            return
+        fi
+    fi
+
+    # Check for VAAPI (Intel/AMD)
+    if [ -e /dev/dri/renderD128 ]; then
+        if ffmpeg -encoders 2>/dev/null | grep -q h264_vaapi; then
+            echo "h264_vaapi"
+            return
+        fi
+    fi
+
+    # Fallback to CPU
+    echo "libx264"
+}
+
+# Stop recording
+stop_recording() {
+    if [ -f "$PIDFILE" ]; then
+        PID=$(cat "$PIDFILE")
+        if kill -0 "$PID" 2>/dev/null; then
+            kill -SIGINT "$PID"
+            wait "$PID" 2>/dev/null
+
+            # Get the recording file from the process
+            RECORDING=$(ps -p "$PID" -o args= 2>/dev/null | grep -oP '(?<=-f )[^ ]+' || echo "")
+
+            rm -f "$PIDFILE"
+            notify-send -t 3000 "Recording Stopped" "Saved to ~/Videos/"
+            return 0
+        fi
+        rm -f "$PIDFILE"
+    fi
+    return 1
+}
+
+# Start recording
+start_recording() {
+    local region="$1"
+    local timestamp=$(date +%Y%m%d-%H%M%S)
+    local filename="$RECORDINGS_DIR/recording-$timestamp.mp4"
+    local encoder=$(get_encoder)
+
+    # Build wf-recorder command
+    local cmd="wf-recorder"
+
+    # Add encoder
+    if [ "$encoder" = "h264_vaapi" ]; then
+        cmd="$cmd -c $encoder -d /dev/dri/renderD128"
+    else
+        cmd="$cmd -c $encoder"
+    fi
+
+    # Add region selection if requested
+    if [ "$region" = "region" ]; then
+        GEOMETRY=$(slurp 2>/dev/null)
+        if [ -z "$GEOMETRY" ]; then
+            notify-send -t 2000 "Recording" "Cancelled"
+            return 1
+        fi
+        cmd="$cmd -g \"$GEOMETRY\""
+    fi
+
+    # Output file
+    cmd="$cmd -f \"$filename\""
+
+    # Start recording
+    eval "$cmd" &
+    echo $! > "$PIDFILE"
+
+    # Notify with encoder info
+    local enc_name="CPU"
+    [ "$encoder" = "h264_nvenc" ] && enc_name="NVIDIA GPU"
+    [ "$encoder" = "h264_vaapi" ] && enc_name="GPU (VAAPI)"
+
+    if [ "$region" = "region" ]; then
+        notify-send -t 2000 "Recording Region" "Using $enc_name encoder"
+    else
+        notify-send -t 2000 "Recording Screen" "Using $enc_name encoder"
+    fi
+}
+
+# Main logic
+case "$1" in
+    region)
+        # Region recording
+        if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+            stop_recording
+        else
+            start_recording region
+        fi
+        ;;
+    *)
+        # Full screen toggle
+        if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+            stop_recording
+        else
+            start_recording
+        fi
+        ;;
+esac
