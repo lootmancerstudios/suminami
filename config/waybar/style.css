@@ -356,8 +356,8 @@ tooltip label {
 
 /* Recording indicator */
 @keyframes blink-recording {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
+    from { opacity: 1; }
+    to { opacity: 0.3; }
 }
 
 #custom-recording {
@@ -369,7 +369,7 @@ tooltip label {
     padding: 0 8px;
     color: @state-critical;
     font-weight: bold;
-    animation: blink-recording 1s ease-in-out infinite;
+    animation: blink-recording 0.5s ease-in-out infinite alternate;
 }
 
 #custom-recording.recording:hover {
