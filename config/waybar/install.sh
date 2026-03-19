@@ -2,6 +2,17 @@
 # ╔═══════════════════════════════════════════════════════════════════╗
 # ║                     SumiNami Bar Installer                        ║
 # ╚═══════════════════════════════════════════════════════════════════╝
+#
+# NOTE: This is a STANDALONE installer for the waybar component only.
+# It is NOT called by the main install.sh.
+#
+# The main install.sh manages waybar via a symlink:
+#   ~/.config/waybar -> ~/.config/suminami/config/waybar
+#
+# Running this script manually after a full suminami install will
+# REPLACE that symlink with a clone of the suminami-bar repo and
+# requires 'wofi' which the main installer does not install.
+# Only run this if you want to install the waybar component standalone.
 
 set -e
 

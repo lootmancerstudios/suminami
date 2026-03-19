@@ -59,8 +59,10 @@ The Hub menu update also regenerates themes and reloads all components automatic
 ## Installation
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/lootmancerstudios/suminami/main/install.sh)
+curl -s https://raw.githubusercontent.com/lootmancerstudios/suminami/main/install.sh | bash
 ```
+
+> Works in bash, zsh, and fish.
 
 ## Theme System
 

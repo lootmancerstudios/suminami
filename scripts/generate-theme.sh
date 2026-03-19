@@ -217,6 +217,7 @@ EOF
 
 # Generate waybar script colors.sh
 generate_waybar_script_colors() {
+    mkdir -p "$HOME/.config/waybar/scripts"
     cat > "$HOME/.config/waybar/scripts/colors.sh" << EOF
 #!/bin/bash
 # SumiNami - Script colors ($THEME_NAME)
