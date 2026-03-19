@@ -96,7 +96,7 @@
         "exec": "~/.config/waybar/scripts/cpu",
         "return-type": "json",
         "interval": 3,
-        "on-click": "kitty -e sh -c 'command -v btop >/dev/null && btop || htop'"
+        "on-click": "~/.config/waybar/scripts/terminal-exec sh -c 'command -v btop >/dev/null && btop || htop'"
     },
 
     "custom/memory": {
@@ -144,7 +144,7 @@
         "return-type": "json",
         "interval": 1,
         "on-click": "pactl set-sink-mute @DEFAULT_SINK@ toggle",
-        "on-click-right": "pavucontrol || pwvucontrol || (command -v pulsemixer && kitty -e pulsemixer) || true",
+        "on-click-right": "pavucontrol || pwvucontrol || ~/.config/waybar/scripts/terminal-exec pulsemixer || true",
         "on-scroll-up": "~/.config/waybar/scripts/volume-up",
         "on-scroll-down": "pactl set-sink-volume @DEFAULT_SINK@ -1%"
     },

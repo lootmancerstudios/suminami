@@ -1,0 +1,10 @@
+#!/bin/bash
+# Run a command in the best available terminal emulator
+# Usage: terminal-exec <command> [args...]
+for term in kitty alacritty foot wezterm ghostty xterm; do
+    if command -v "$term" >/dev/null 2>&1; then
+        exec "$term" -e "$@"
+    fi
+done
+notify-send "Terminal not found" "Install kitty, alacritty, foot, or wezterm" 2>/dev/null || true
+exit 1
