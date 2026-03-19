@@ -38,7 +38,7 @@ tdie=$(echo "$output" | awk '/Tdie:/{gsub(/[+°C]/,"",$2); print int($2)}')
 [ -z "$temp" ] && temp=$(echo "$output" | awk '/k10temp/,/^$/{if(/temp1/) {gsub(/[+°C]/,"",$2); print int($2)}}' | head -1)
 # 6. Generic: any CPU temp
 [ -z "$temp" ] && temp=$(echo "$output" | awk '/CPU.*:/{gsub(/[+°C]/,"",$2); print int($2); exit}')
-[ -z "$temp" ] && exit 1
+[ -z "$temp" ] && echo '{"text": "", "tooltip": "lm_sensors not available or not configured", "class": "hidden"}' && exit 0
 
 class=""
 [ "$temp" -ge 70 ] && class="warning"

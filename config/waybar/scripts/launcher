@@ -24,4 +24,4 @@ if [ -f "$CONFIG_FILE" ]; then
     fi
 fi
 
-exec $launcher_cmd
+exec bash -c "$launcher_cmd"
