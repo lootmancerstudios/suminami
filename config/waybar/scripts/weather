@@ -2,6 +2,7 @@
 """Weather widget for Waybar using wttr.in (auto-detects location via IP)
 
 Caches successful results for 10 minutes. On failure, retries every interval.
+Location name resolved via Nominatim (OpenStreetMap), cached for 1 hour.
 """
 
 import json
@@ -11,13 +12,14 @@ import urllib.parse
 import urllib.request
 
 CACHE_FILE = "/tmp/waybar-weather-cache"
-CACHE_MAX_AGE = 600  # 10 minutes - only fetch if cache older than this
+LOCATION_CACHE_FILE = "/tmp/waybar-weather-location"
+CACHE_MAX_AGE = 600       # 10 minutes - only fetch weather if cache older than this
+LOCATION_MAX_AGE = 3600   # 1 hour - re-geocode in case user has travelled
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 COLORS_FILE = os.path.join(SCRIPT_DIR, "colors.sh")
 CONFIG_FILE = os.path.expanduser("~/.config/waybar/suminami.conf")
 
 def load_theme_colors():
-    """Load colors from colors.sh"""
     colors = {
         "accent": "#D27E99",
         "fg": "#DCD7BA",
@@ -45,15 +47,12 @@ def load_theme_colors():
     return colors
 
 def load_cache():
-    """Load cached weather data if valid"""
     try:
         if os.path.exists(CACHE_FILE):
             mtime = os.path.getmtime(CACHE_FILE)
-            age = time.time() - mtime
-            if age < CACHE_MAX_AGE:
+            if time.time() - mtime < CACHE_MAX_AGE:
                 with open(CACHE_FILE, 'r') as f:
                     data = json.load(f)
-                    # Only use cache if it was successful (has actual temp)
                     if data.get("success"):
                         return data
     except Exception:
@@ -61,7 +60,6 @@ def load_cache():
     return None
 
 def save_cache(data):
-    """Save weather data to cache"""
     try:
         with open(CACHE_FILE, 'w') as f:
             json.dump(data, f)
@@ -69,7 +67,7 @@ def save_cache(data):
         pass
 
 def get_weather_location():
-    """Read weather_location from config file"""
+    """Read weather_location from suminami.conf (user-configured, takes priority)"""
     try:
         if os.path.exists(CONFIG_FILE):
             with open(CONFIG_FILE, 'r') as f:
@@ -82,24 +80,70 @@ def get_weather_location():
         pass
     return None
 
+def load_location_cache():
+    """Load cached city name from Nominatim if still fresh (1 hour TTL)"""
+    try:
+        if os.path.exists(LOCATION_CACHE_FILE):
+            mtime = os.path.getmtime(LOCATION_CACHE_FILE)
+            if time.time() - mtime < LOCATION_MAX_AGE:
+                with open(LOCATION_CACHE_FILE, 'r') as f:
+                    return f.read().strip()
+    except Exception:
+        pass
+    return None
+
+def save_location_cache(city):
+    try:
+        with open(LOCATION_CACHE_FILE, 'w') as f:
+            f.write(city)
+    except Exception:
+        pass
+
+def reverse_geocode(lat, lon):
+    """Resolve lat/lon to city name via Nominatim (OpenStreetMap). 1 req/sec limit."""
+    try:
+        url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
+        req = urllib.request.Request(url, headers={"User-Agent": "suminami-waybar/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+            addr = data.get("address", {})
+            # Prefer city, then town, then village, then county
+            city = (addr.get("city")
+                    or addr.get("town")
+                    or addr.get("village")
+                    or addr.get("county")
+                    or "")
+            return city
+    except Exception:
+        return None
+
+def parse_latlon(query_str):
+    """Parse 'Lat 49.88 and Lon -97.17' from wttr.in request query"""
+    try:
+        parts = query_str.split()
+        lat = float(parts[1])
+        lon = float(parts[4])
+        return lat, lon
+    except Exception:
+        return None, None
+
 def fetch_weather():
     """Fetch weather from wttr.in"""
     try:
         location = get_weather_location()
         if location:
-            # URL-encode the location
             location = urllib.parse.quote(location)
             url = f"https://wttr.in/{location}?format=j1"
         else:
             url = "https://wttr.in/?format=j1"
         req = urllib.request.Request(url, headers={"User-Agent": "curl/8.0"})
         with urllib.request.urlopen(req, timeout=10) as resp:
-            return json.loads(resp.read().decode())
+            result = json.loads(resp.read().decode())
+            return result.get("data", result)
     except Exception:
         return None
 
 def get_icon(code):
-    """Map weather codes to nerd font icons"""
     code = int(code)
     icons = {
         113: "󰖙",  # Clear/Sunny
@@ -153,15 +197,35 @@ def get_icon(code):
     }
     return icons.get(code, "󰖐")
 
+def resolve_city(data):
+    """Get display city name: configured location > Nominatim reverse geocode > raw query"""
+    configured = get_weather_location()
+    if configured:
+        return configured
+
+    # Try location cache first
+    cached_city = load_location_cache()
+    if cached_city:
+        return cached_city
+
+    # Parse lat/lon from wttr.in response and reverse geocode
+    query_str = data.get("request", [{}])[0].get("query", "")
+    lat, lon = parse_latlon(query_str)
+    if lat is not None:
+        city = reverse_geocode(lat, lon)
+        if city:
+            save_location_cache(city)
+            return city
+
+    # Fallback: raw query string
+    return query_str if query_str else "Unknown"
+
 def format_output(data):
-    """Format weather data for waybar output"""
     try:
         current = data["current_condition"][0]
-        location = data["nearest_area"][0]
         weather = data["weather"][0]
         astro = weather["astronomy"][0]
 
-        # Current conditions
         temp_c = current["temp_C"]
         feels_c = current["FeelsLikeC"]
         humidity = current["humidity"]
@@ -169,25 +233,19 @@ def format_output(data):
         wind_dir = current["winddir16Point"]
         condition = current["weatherDesc"][0]["value"]
         code = current["weatherCode"]
-
-        # Location
-        city = location["areaName"][0]["value"]
-        region = location["region"][0]["value"]
-
-        # Astronomy
         sunrise = astro["sunrise"]
         sunset = astro["sunset"]
 
-        # Theme colors (from colors.sh)
+        city = resolve_city(data)
+
         colors = load_theme_colors()
         accent = colors["accent"]
         highlight = colors["highlight"]
         gray = colors["muted"]
         white = colors["fg"]
 
-        # Build tooltip with Pango markup
         tooltip_lines = [
-            f"<span color='{accent}'><b>{city}</b></span>, <span color='{gray}'>{region}</span>",
+            f"<span color='{accent}'><b>{city}</b></span>",
             f"<span color='{white}'>{condition}</span>",
             "",
             f"<span color='{gray}'>Feels like:</span> <span color='{highlight}'>{feels_c}°C</span>",
@@ -197,8 +255,6 @@ def format_output(data):
             f"<span color='{highlight}'>󰖨 {sunrise}</span>   <span color='{accent}'>󰖛 {sunset}</span>",
         ]
         tooltip = "\n".join(tooltip_lines)
-
-        # Icon
         icon = get_icon(code)
 
         return {
@@ -212,27 +268,21 @@ def format_output(data):
         return None
 
 def main():
-    # Check cache first
     cached = load_cache()
     if cached:
-        # Output cached data (without success flag in output)
         output = {k: v for k, v in cached.items() if k != "success"}
         print(json.dumps(output))
         return
 
-    # Fetch fresh data
     data = fetch_weather()
-
     if data:
         output = format_output(data)
         if output:
             save_cache(output)
-            # Output without success flag
             clean_output = {k: v for k, v in output.items() if k != "success"}
             print(json.dumps(clean_output))
             return
 
-    # Failure - output error (don't cache failures)
     print(json.dumps({"text": "󰖐 --", "tooltip": "Weather unavailable", "class": "error"}))
 
 if __name__ == "__main__":
