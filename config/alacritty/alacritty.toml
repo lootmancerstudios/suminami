@@ -32,6 +32,9 @@ magenta = "#938AA9"
 cyan    = "#7AA89F"
 white   = "#DCD7BA"
 
+[window]
+confirm_on_close = false
+
 # Uncomment to set a specific font:
 # [font]
 # normal = { family = "JetBrainsMono Nerd Font", style = "Regular" }
