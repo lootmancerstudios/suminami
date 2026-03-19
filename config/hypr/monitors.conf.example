@@ -5,12 +5,15 @@
 #
 # Syntax: monitor = name, resolution, position, scale
 #
+# Scale: use 1 for most displays. For HiDPI (small screen, high res), try 1.25 or 1.5.
+# Using "auto" for scale lets Hyprland guess — it often guesses too large on laptops.
+#
 # Examples:
-#   monitor = ,preferred,auto,auto                    # Auto-detect (recommended default)
+#   monitor = ,preferred,auto,1                       # Safe default (scale 1)
 #   monitor = HDMI-A-1, 1920x1080@60, 0x0, 1          # Specific monitor
 #   monitor = DP-1, 2560x1440@144, 1920x0, 1          # Second monitor to the right
-#   monitor = eDP-1, 1920x1080@60, 0x0, 1             # Laptop display
+#   monitor = eDP-1, 1920x1200@60, 0x0, 1.25          # Laptop display, slight HiDPI
 #
-# To find your monitor names: hyprctl monitors
+# To find your monitor name: hyprctl monitors
 
-monitor = ,preferred,auto,auto
+monitor = ,preferred,auto,1
