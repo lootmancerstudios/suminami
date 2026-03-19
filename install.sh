@@ -343,6 +343,7 @@ PACMAN_DEPS=(
     btop
     python-pipx
     papirus-icon-theme
+    lm_sensors
     polkit-gnome
     # File managers
     thunar
@@ -447,7 +448,7 @@ setup_suminami() {
 # Create symlinks
 create_symlinks() {
     local suminami_dir="$HOME/.config/suminami"
-    local configs=(hypr waybar dunst btop)
+    local configs=(hypr waybar dunst btop kitty alacritty)
 
     print_status "Creating config symlinks..."
 
@@ -724,6 +725,13 @@ install_screen_locker() {
         sudo pacman -S --needed --noconfirm hypridle
         print_success "hypridle installed"
     fi
+
+    # Add hypridle to autostart if not already present
+    local env_conf="$HOME/.config/hypr/env.conf"
+    if [ -f "$env_conf" ] && ! grep -q "^exec-once = hypridle" "$env_conf"; then
+        printf "\nexec-once = hypridle\n" >> "$env_conf"
+        print_success "hypridle added to Hyprland autostart"
+    fi
 }
 
 # Install clipboard persistence (optional)
@@ -831,6 +839,177 @@ install_tui_enhancements() {
     echo ""
 }
 
+# Configure TTY autostart as a fallback session launcher
+_setup_tty_autostart() {
+    local shell_name
+    shell_name=$(basename "$SHELL")
+    local rc_file=""
+
+    case "$shell_name" in
+        bash) rc_file="$HOME/.bashrc" ;;
+        zsh)  rc_file="$HOME/.zshrc" ;;
+        fish) rc_file="$HOME/.config/fish/config.fish" ;;
+        *)
+            print_warning "Shell '$shell_name' not supported for TTY autostart"
+            print_status "Manually add Hyprland autostart to your shell rc"
+            return 1
+            ;;
+    esac
+
+    if grep -q "exec Hyprland" "$rc_file" 2>/dev/null; then
+        print_status "Hyprland TTY autostart already configured"
+        return 0
+    fi
+
+    print_status "Adding Hyprland TTY autostart to $rc_file..."
+
+    local autostart_block
+    if [ "$shell_name" = "fish" ]; then
+        autostart_block='\n# SumiNami: start Hyprland on TTY1 login\nif test -z "$WAYLAND_DISPLAY" -a "$XDG_VTNR" = "1"\n    exec Hyprland\nend'
+    else
+        autostart_block='\n# SumiNami: start Hyprland on TTY1 login\nif [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_VTNR" = "1" ]; then\n    exec Hyprland\nfi'
+    fi
+
+    printf "$autostart_block\n" >> "$rc_file"
+    print_success "TTY autostart configured in $rc_file"
+    print_warning "Log in on TTY1 after reboot and Hyprland will start automatically"
+}
+
+# Verify sddm-greeter works and fix if broken.
+# A stale binary (e.g. Qt5 era) with missing shared libs crashes
+# silently at boot causing a black screen with no recovery.
+# Returns 0 if greeter is OK or fixed, 1 if it cannot be repaired.
+_verify_sddm_greeter() {
+    if [ ! -f /usr/bin/sddm-greeter ]; then
+        print_warning "sddm-greeter not found"
+        return 1
+    fi
+
+    if ! ldd /usr/bin/sddm-greeter 2>/dev/null | grep -q "not found"; then
+        print_success "sddm-greeter OK"
+        return 0
+    fi
+
+    print_warning "sddm-greeter has missing libraries (stale binary detected)"
+
+    # Try Qt6 greeter if available
+    if [ -f /usr/bin/sddm-greeter-qt6 ] && ! ldd /usr/bin/sddm-greeter-qt6 2>/dev/null | grep -q "not found"; then
+        print_status "Replacing broken greeter with Qt6 version..."
+        sudo mv /usr/bin/sddm-greeter /usr/bin/sddm-greeter.bak
+        sudo ln -s /usr/bin/sddm-greeter-qt6 /usr/bin/sddm-greeter
+        print_success "sddm-greeter replaced with Qt6 version"
+        return 0
+    fi
+
+    # Try reinstalling sddm to get a clean binary
+    print_status "No working greeter fallback found, reinstalling sddm..."
+    sudo pacman -S --noconfirm sddm
+    if ! ldd /usr/bin/sddm-greeter 2>/dev/null | grep -q "not found"; then
+        print_success "sddm-greeter fixed via reinstall"
+        return 0
+    fi
+
+    return 1
+}
+
+# Ensure a display manager or TTY autostart is configured
+# Without this, a blank/black screen is seen after reboot
+setup_display_manager() {
+    # Check if any display manager is already enabled
+    local enabled_dm=""
+    for dm in sddm gdm lightdm lxdm greetd; do
+        if systemctl is-enabled "$dm" &>/dev/null; then
+            enabled_dm="$dm"
+            break
+        fi
+    done
+
+    if [ -n "$enabled_dm" ]; then
+        print_success "Display manager already enabled ($enabled_dm)"
+        return 0
+    fi
+
+    echo ""
+    echo -e "${BLUE}Display Manager / Session Start${NC}"
+    echo "  No display manager is currently enabled."
+    echo "  Without one, you will see a blank screen after reboot."
+    echo ""
+    echo "  Options:"
+    echo "    1) Enable SDDM (recommended - login screen)"
+    echo "    2) TTY autostart (launch Hyprland from terminal login)"
+    echo "    3) Skip (configure manually later)"
+    echo ""
+    read -p "Choose [1/2/3]: " -n 1 -r
+    echo ""
+
+    case "$REPLY" in
+        1)
+            # Pre-flight: check for known issues before installing anything
+            local sddm_preflight_ok=true
+
+            # Check if Qt6 deps are available in repos (required by current sddm)
+            if ! pacman -Si qt6-declarative &>/dev/null; then
+                print_warning "qt6-declarative not found in repos — SDDM may not work on this system."
+                sddm_preflight_ok=false
+            fi
+
+            # Check for an existing stale/broken greeter from a previous install
+            if [ -f /usr/bin/sddm-greeter ] && ldd /usr/bin/sddm-greeter 2>/dev/null | grep -q "not found"; then
+                print_warning "Existing sddm-greeter has missing libraries (stale install detected)."
+                if [ -f /usr/bin/sddm-greeter-qt6 ] && ! ldd /usr/bin/sddm-greeter-qt6 2>/dev/null | grep -q "not found"; then
+                    print_status "Qt6 greeter is available and can replace the broken one."
+                else
+                    print_warning "No working greeter fallback found — a reinstall of sddm will be needed."
+                fi
+            fi
+
+            if [ "$sddm_preflight_ok" = false ]; then
+                echo ""
+                print_error "SDDM pre-flight checks failed. Installing it may leave your system with a black screen."
+                read -p "Proceed anyway? (not recommended) [y/N] " -n 1 -r
+                echo ""
+                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                    print_warning "Skipping SDDM. Falling back to TTY autostart instead..."
+                    _setup_tty_autostart
+                    return 0
+                fi
+            fi
+
+            print_status "Installing and enabling SDDM..."
+            sudo pacman -S --needed --noconfirm sddm
+            sudo systemctl enable sddm
+
+            if _verify_sddm_greeter; then
+                # Write complete autologin config with both User and Session.
+                # Without User=, SDDM falls back to the greeter — if it is
+                # broken this results in a black screen on reboot.
+                sudo mkdir -p /etc/sddm.conf.d
+                printf "[Autologin]\nUser=%s\nSession=hyprland\n" "$(whoami)" \
+                    | sudo tee /etc/sddm.conf.d/suminami-autologin.conf > /dev/null
+                print_success "SDDM autologin configured for $(whoami)"
+                print_success "SDDM enabled - will start on next boot"
+            else
+                print_error "Could not repair sddm-greeter. Disabling SDDM to prevent black screen."
+                sudo systemctl disable sddm
+                echo ""
+                print_warning "To fix SDDM manually later:"
+                echo "    sudo pacman -S sddm qt6-declarative"
+                echo "    sudo systemctl enable sddm"
+                echo ""
+                print_warning "Falling back to TTY autostart instead..."
+                _setup_tty_autostart
+            fi
+            ;;
+        2)
+            _setup_tty_autostart
+            ;;
+        *)
+            print_warning "Skipping display manager setup"
+            print_warning "You may see a blank screen after reboot - enable a DM manually"
+            ;;
+    esac
+}
+
 # Setup shell integration (zoxide smart cd)
 setup_shell_integration() {
     local suminami_dir="$HOME/.config/suminami"
@@ -846,17 +1025,17 @@ setup_shell_integration() {
         bash)
             rc_file="$HOME/.bashrc"
             shell_config="$suminami_dir/config/shell/zoxide.bash"
-            source_line="source \"$shell_config\""
+            source_line="[ -f \"$shell_config\" ] && source \"$shell_config\""
             ;;
         zsh)
             rc_file="$HOME/.zshrc"
             shell_config="$suminami_dir/config/shell/zoxide.zsh"
-            source_line="source \"$shell_config\""
+            source_line="[[ -f \"$shell_config\" ]] && source \"$shell_config\""
             ;;
         fish)
             rc_file="$HOME/.config/fish/config.fish"
             shell_config="$suminami_dir/config/shell/zoxide.fish"
-            source_line="source \"$shell_config\""
+            source_line="test -f \"$shell_config\"; and source \"$shell_config\""
             mkdir -p "$HOME/.config/fish"
             ;;
         *)
@@ -883,6 +1062,10 @@ setup_shell_integration() {
 
 # Main
 main() {
+    # Re-attach stdin to the terminal so read prompts work when script is piped
+    # e.g. curl ... | bash
+    [ -t 0 ] || exec < /dev/tty
+
     echo ""
     echo -e "${BLUE}╔══════════════════════════════════════╗${NC}"
     echo -e "${BLUE}║${NC}       ${GREEN}Suminami Rice Installer${NC}        ${BLUE}║${NC}"
@@ -914,10 +1097,15 @@ main() {
 
     # Generate initial theme
     print_status "Generating default theme..."
-    "$HOME/.config/suminami/scripts/generate-theme.sh"
+    if ! "$HOME/.config/suminami/scripts/generate-theme.sh"; then
+        print_warning "Theme generation failed - run ~/.config/suminami/scripts/generate-theme.sh manually after logging in"
+    fi
 
     # Set initial wallpaper
     set_initial_wallpaper
+
+    # Create Screenshots directory (hyprshot saves here by default)
+    mkdir -p "$HOME/Pictures"
 
     # Install fetch tool (neofetch config or fastfetch)
     install_fetch_tool
@@ -942,6 +1130,9 @@ main() {
 
     # Optional: Install TUI enhancements
     install_tui_enhancements
+
+    # Ensure a DM or TTY autostart is in place (prevents blank screen on reboot)
+    setup_display_manager
 
     # Setup shell integration (zoxide)
     setup_shell_integration
@@ -973,3 +1164,4 @@ while [[ $# -gt 0 ]]; do
 done
 
 main
+exit 0
