@@ -43,10 +43,9 @@ systemctl --user restart dunst 2>/dev/null
 WALLPAPER="$SUMINAMI_DIR/wallpapers/$THEME.jpg"
 [ ! -f "$WALLPAPER" ] && WALLPAPER="$SUMINAMI_DIR/wallpapers/$THEME.png"
 if [ -f "$WALLPAPER" ]; then
-    if pgrep -x hyprpaper >/dev/null; then
-        hyprctl hyprpaper preload "$WALLPAPER" >/dev/null 2>&1
-        hyprctl hyprpaper wallpaper ",${WALLPAPER}" >/dev/null 2>&1
-    elif pgrep -x swaybg >/dev/null; then
+    if command -v swww &>/dev/null && pgrep -x swww-daemon &>/dev/null; then
+        swww img "$WALLPAPER" --transition-type fade --transition-fps 60 --transition-duration 1
+    elif command -v swaybg &>/dev/null; then
         pkill swaybg
         swaybg -i "$WALLPAPER" -m fill &
         disown
