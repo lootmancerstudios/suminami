@@ -227,6 +227,9 @@ configuration {
     sidebar-mode: false;
     cycle: true;
     click-to-exit: true;
+    hover-select: true;
+    me-select-entry: "";
+    me-accept-entry: "MousePrimary";
 }
 
 @theme "suminami"
