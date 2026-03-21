@@ -314,7 +314,7 @@ install_yay() {
 # Core dependencies (from official repos)
 PACMAN_DEPS=(
     hyprland
-    hyprpaper
+    swww
     xdg-desktop-portal-hyprland
     xdg-desktop-portal-gtk
     waybar

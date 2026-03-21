@@ -16,23 +16,14 @@ if [ ! -d "$WALLPAPER_DIR" ] || [ -z "$(find "$WALLPAPER_DIR" -maxdepth 1 -type 
     exit 0
 fi
 
-# Detect wallpaper backend
-if pgrep -x hyprpaper >/dev/null; then
-    BACKEND="hyprpaper"
-    # Get current wallpaper from hyprpaper
-    ORIGINAL_WALLPAPER=$(hyprctl hyprpaper listactive 2>/dev/null | head -1 | cut -d'=' -f2 | xargs)
-else
-    BACKEND="swaybg"
-    ORIGINAL_WALLPAPER=$(cat "$CURRENT_FILE" 2>/dev/null)
-fi
+ORIGINAL_WALLPAPER=$(cat "$CURRENT_FILE" 2>/dev/null)
 
 # Function to set wallpaper
 set_wallpaper() {
     local path="$1"
-    if [ "$BACKEND" = "hyprpaper" ]; then
-        hyprctl hyprpaper preload "$path" >/dev/null 2>&1
-        hyprctl hyprpaper wallpaper ",${path}" >/dev/null 2>&1
-    else
+    if command -v swww &>/dev/null && pgrep -x swww-daemon &>/dev/null; then
+        swww img "$path" --transition-type fade --transition-fps 60 --transition-duration 1
+    elif command -v swaybg &>/dev/null; then
         pkill swaybg 2>/dev/null
         swaybg -i "$path" -m fill &
         disown
