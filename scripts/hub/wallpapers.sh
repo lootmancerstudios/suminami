@@ -21,7 +21,9 @@ ORIGINAL_WALLPAPER=$(cat "$CURRENT_FILE" 2>/dev/null)
 # Function to set wallpaper
 set_wallpaper() {
     local path="$1"
-    if command -v swww &>/dev/null && pgrep -x swww-daemon &>/dev/null; then
+    if command -v awww &>/dev/null && pgrep -x awww-daemon &>/dev/null; then
+        awww img "$path" --transition-type fade --transition-fps 60 --transition-duration 1
+    elif command -v swww &>/dev/null && pgrep -x swww-daemon &>/dev/null; then
         swww img "$path" --transition-type fade --transition-fps 60 --transition-duration 1
     elif command -v swaybg &>/dev/null; then
         pkill swaybg 2>/dev/null
