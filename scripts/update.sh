@@ -38,10 +38,14 @@ echo -e "${BLUE}[*]${NC} Regenerating theme..."
 
 # Reload wallpaper
 echo -e "${BLUE}[*]${NC} Reloading wallpaper..."
-if command -v swww &>/dev/null; then
+local_wp=$(cat "$SUMINAMI_DIR/current-wallpaper" 2>/dev/null)
+if command -v awww-daemon &>/dev/null; then
+    pgrep -x awww-daemon &>/dev/null || setsid awww-daemon &>/dev/null &
+    sleep 0.5
+    [ -f "$local_wp" ] && awww img "$local_wp" --transition-type fade --transition-fps 60 --transition-duration 1
+elif command -v swww-daemon &>/dev/null; then
     pgrep -x swww-daemon &>/dev/null || setsid swww-daemon &>/dev/null &
     sleep 0.5
-    local_wp=$(cat "$SUMINAMI_DIR/current-wallpaper" 2>/dev/null)
     [ -f "$local_wp" ] && swww img "$local_wp" --transition-type fade --transition-fps 60 --transition-duration 1
 fi
 killall hyprpaper 2>/dev/null || true

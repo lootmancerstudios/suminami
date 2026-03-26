@@ -314,7 +314,7 @@ install_yay() {
 # Core dependencies (from official repos)
 PACMAN_DEPS=(
     hyprland
-    swww
+    awww
     xdg-desktop-portal-hyprland
     xdg-desktop-portal-gtk
     waybar
@@ -380,6 +380,17 @@ install_packages() {
     if ! "$aur_helper" --version &> /dev/null; then
         print_warning "AUR helper broke after system update, rebuilding..."
         rebuild_aur_helper "$aur_helper"
+    fi
+
+    # Handle awww/swww rename: fall back to swww if awww isn't in repos
+    if ! pacman -Si awww &>/dev/null; then
+        if pacman -Si swww &>/dev/null; then
+            print_warning "Package 'awww' not found, using 'swww' instead"
+            PACMAN_DEPS=("${PACMAN_DEPS[@]/awww/swww}")
+        else
+            print_warning "Neither awww nor swww found in repos — wallpaper daemon will be unavailable"
+            PACMAN_DEPS=("${PACMAN_DEPS[@]/awww/}")
+        fi
     fi
 
     print_status "Installing core dependencies..."
