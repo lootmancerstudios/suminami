@@ -31,6 +31,26 @@ get_encoder() {
     echo "libx264"
 }
 
+# Snap a "X,Y WxH" geometry to a multiple-of-4 grid. Covers common fractional
+# scales (1.25 needs 4, 1.5 needs 2, 2.0 any). Width/height clamped to >= 4.
+snap_geometry() {
+    local raw=$1 x y rest dim w h
+    x=${raw%%,*}
+    rest=${raw#*,}
+    y=${rest%% *}
+    dim=${rest#* }
+    w=${dim%%x*}
+    h=${dim##*x}
+
+    x=$(( x / 4 * 4 ))
+    y=$(( y / 4 * 4 ))
+    w=$(( (w + 3) / 4 * 4 ))
+    h=$(( (h + 3) / 4 * 4 ))
+    (( w < 4 )) && w=4
+    (( h < 4 )) && h=4
+    echo "$x,$y ${w}x${h}"
+}
+
 # Stop recording
 stop_recording() {
     local stopped=false
@@ -82,12 +102,17 @@ start_recording() {
 
     # Add region selection if requested
     if [ "$region" = "region" ]; then
-        GEOMETRY=$(slurp 2>/dev/null)
-        if [ -z "$GEOMETRY" ]; then
+        local raw
+        raw=$(slurp 2>/dev/null)
+        if [ -z "$raw" ]; then
             notify-send -t 2000 "Recording" "Cancelled"
             return 1
         fi
-        cmd+=(-g "$GEOMETRY")
+        # Snap region to a pixel grid so it stays valid under fractional
+        # scaling (e.g. scale 1.25 → logical dims must be multiples of 4 so
+        # physical pixels land on integer boundaries). Without this,
+        # wf-recorder dies with "Failed to copy frame".
+        cmd+=(-g "$(snap_geometry "$raw")")
     fi
 
     # Output file
