@@ -109,22 +109,14 @@ start_recording() {
     fi
 }
 
-# Main logic
-case "$1" in
-    region)
-        # Region recording
-        if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-            stop_recording
-        else
-            start_recording region
-        fi
-        ;;
-    *)
-        # Full screen toggle
-        if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-            stop_recording
-        else
-            start_recording
-        fi
-        ;;
-esac
+# Main logic — pgrep is authoritative so stale/missing PIDFILE can't desync toggle
+if pgrep -x wf-recorder >/dev/null 2>&1 || pgrep -x slurp >/dev/null 2>&1; then
+    stop_recording
+    # Cancel any pending slurp so a second press during region-select aborts cleanly
+    pkill -x slurp 2>/dev/null
+else
+    case "$1" in
+        region) start_recording region ;;
+        *)      start_recording ;;
+    esac
+fi
