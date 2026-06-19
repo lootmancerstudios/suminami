@@ -2,6 +2,8 @@
 # Suminami Theme Generator
 # Reads the current theme and generates styles for all components
 
+set -eo pipefail
+
 SUMINAMI_DIR="$HOME/.config/suminami"
 THEMES_DIR="$SUMINAMI_DIR/themes"
 CURRENT_THEME=$(cat "$THEMES_DIR/current" 2>/dev/null || echo "kanagawa")
@@ -254,7 +256,9 @@ EOF
 # Generate Dunst colors
 generate_dunst() {
     local dunstrc="$HOME/.config/dunst/dunstrc"
-    [ ! -f "$dunstrc" ] && return
+    # -e-safe early return: bare `[ ! -f ] && return` would abort under set -e
+    # when the file exists (false test => exit 1).
+    [ -f "$dunstrc" ] || return 0
 
     # Convert hex to hex with alpha (f5 = ~96% opacity)
     local bg_alpha="${BG_PRIMARY}f5"

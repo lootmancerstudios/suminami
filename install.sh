@@ -17,6 +17,14 @@ print_success() { echo -e "${GREEN}[+]${NC} $1"; }
 print_warning() { echo -e "${YELLOW}[!]${NC} $1"; }
 print_error() { echo -e "${RED}[-]${NC} $1"; }
 
+# Run a network git operation so a dropped/flaky connection aborts instead of
+# hanging forever. Stall detection (lowSpeedLimit/Time) cancels only a dead
+# transfer — a slow-but-progressing download is left alone — with a generous
+# wall-clock backstop on top.
+git_net() {
+    timeout 300 git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 "$@"
+}
+
 # Show help message
 show_help() {
     echo "Suminami Rice Installer"
@@ -265,8 +273,8 @@ rebuild_aur_helper() {
     trap 'rm -rf "$tmp_dir"' EXIT
 
     cd "$tmp_dir"
-    git clone "https://aur.archlinux.org/${helper}-bin.git" 2>/dev/null || \
-        git clone "https://aur.archlinux.org/${helper}.git"
+    git_net clone "https://aur.archlinux.org/${helper}-bin.git" 2>/dev/null || \
+        git_net clone "https://aur.archlinux.org/${helper}.git"
     cd "${helper}"* 2>/dev/null || cd "$helper"
 
     # Remove the broken package first
@@ -291,8 +299,8 @@ install_yay() {
     print_status "Building yay-bin from AUR..." >&2
     cd "$tmp_dir"
 
-    if ! git clone https://aur.archlinux.org/yay-bin.git; then
-        print_error "Failed to clone yay-bin from AUR" >&2
+    if ! git_net clone https://aur.archlinux.org/yay-bin.git; then
+        print_error "Failed to clone yay-bin from AUR (timed out or no connection)" >&2
         exit 1
     fi
 
@@ -439,15 +447,15 @@ setup_suminami() {
 
     if [ -d "$suminami_dir" ]; then
         print_status "Updating existing suminami installation..."
-        if ! git -C "$suminami_dir" pull; then
-            print_error "Failed to update suminami repository"
+        if ! git_net -C "$suminami_dir" pull; then
+            print_error "Failed to update suminami repository (timed out, no connection, or local changes)"
             print_error "You may have local changes. Try: cd $suminami_dir && git status"
             exit 1
         fi
     else
         print_status "Cloning suminami..."
-        if ! git clone https://github.com/lootmancerstudios/suminami.git "$suminami_dir"; then
-            print_error "Failed to clone suminami repository"
+        if ! git_net clone https://github.com/lootmancerstudios/suminami.git "$suminami_dir"; then
+            print_error "Failed to clone suminami repository (timed out or no connection)"
             print_error "Check your internet connection and try again"
             exit 1
         fi

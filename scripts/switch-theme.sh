@@ -2,6 +2,8 @@
 # Suminami Theme Switcher
 # Usage: switch-theme.sh <theme-name>
 
+set -euo pipefail
+
 SUMINAMI_DIR="$HOME/.config/suminami"
 THEMES_DIR="$SUMINAMI_DIR/themes"
 SCRIPTS_DIR="$SUMINAMI_DIR/scripts"
@@ -31,13 +33,13 @@ echo "$THEME" > "$THEMES_DIR/current"
 
 # Reload waybar (small delay to ensure files are written)
 sleep 0.2
-pkill waybar
+pkill waybar || true
 sleep 0.3
 waybar &
 disown
 
 # Reload dunst to apply new colors
-systemctl --user restart dunst 2>/dev/null
+systemctl --user restart dunst 2>/dev/null || true
 
 # Set theme wallpaper if it exists (check jpg and png)
 WALLPAPER="$SUMINAMI_DIR/wallpapers/$THEME.jpg"
@@ -48,7 +50,7 @@ if [ -f "$WALLPAPER" ]; then
     elif command -v swww &>/dev/null && pgrep -x swww-daemon &>/dev/null; then
         swww img "$WALLPAPER" --transition-type fade --transition-fps 60 --transition-duration 1
     elif command -v swaybg &>/dev/null; then
-        pkill swaybg
+        pkill swaybg || true
         swaybg -i "$WALLPAPER" -m fill &
         disown
     fi
@@ -59,6 +61,6 @@ fi
 gdbus call --session --dest org.freedesktop.Notifications \
     --object-path /org/freedesktop/Notifications \
     --method org.freedesktop.Notifications.Notify \
-    "SumiNami" 0 "" "Theme Changed" "Switched to $THEME" "[]" "{}" 5000 >/dev/null 2>&1
+    "SumiNami" 0 "" "Theme Changed" "Switched to $THEME" "[]" "{}" 5000 >/dev/null 2>&1 || true
 
 echo "Switched to theme: $THEME"
