@@ -25,6 +25,28 @@ git_net() {
     timeout 300 git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 "$@"
 }
 
+# Install official-repo packages, returning non-zero on failure instead of
+# pressing on. Callers MUST gate their success message / dependent steps on the
+# result so a failed install never reports false success or builds on a missing
+# package.
+pac_install() {
+    if sudo pacman -S --needed --noconfirm "$@"; then
+        return 0
+    fi
+    print_error "Failed to install: $* (continuing without it)"
+    return 1
+}
+
+# Back up a shell rc file once before we first append to it, so the user's
+# original is always recoverable. The fixed .suminami.bak name + guard means
+# re-runs never clobber the pristine backup.
+_backup_rc_once() {
+    local rc="$1"
+    [ -f "$rc" ] || return 0
+    local bak="${rc}.suminami.bak"
+    [ -f "$bak" ] || cp "$rc" "$bak"
+}
+
 # Show help message
 show_help() {
     echo "Suminami Rice Installer"
@@ -81,7 +103,12 @@ check_base_tools() {
 
     if [ ${#missing[@]} -gt 0 ]; then
         print_status "Installing required base tools: ${missing[*]}"
-        sudo pacman -S --needed --noconfirm "${missing[@]}"
+        # These are prerequisites for everything below (git clone, AUR builds);
+        # abort loudly rather than limp on without them.
+        if ! pac_install "${missing[@]}"; then
+            print_error "Could not install required base tools. Cannot continue."
+            exit 1
+        fi
     fi
 }
 
@@ -530,8 +557,18 @@ install_sddm_theme() {
         print_status "Installing SDDM theme (requires sudo)..."
 
         if [ -d "$theme_source" ]; then
-            sudo rm -rf "$theme_dest" 2>/dev/null || true
-            sudo cp -r "$theme_source" "$theme_dest"
+            # Back up an existing theme before replacing it (matches the
+            # standalone sddm/install-sddm-theme.sh installer).
+            if [ -d "$theme_dest" ]; then
+                local backup="${theme_dest}.backup.$(date +%Y%m%d_%H%M%S)"
+                print_status "Backing up existing theme to $backup"
+                sudo cp -r "$theme_dest" "$backup" 2>/dev/null || true
+                sudo rm -rf "$theme_dest"
+            fi
+            if ! sudo cp -r "$theme_source" "$theme_dest"; then
+                print_error "Failed to copy SDDM theme"
+                return 1
+            fi
 
             # Copy wallpapers to theme folder for SDDM access
             local wallpaper_source="$suminami_dir/wallpapers"
@@ -644,7 +681,10 @@ install_fetch_tool() {
 
     # No neofetch, install fastfetch
     print_status "Installing fastfetch..."
-    sudo pacman -S --needed --noconfirm fastfetch
+    if ! pac_install fastfetch; then
+        print_warning "Skipping fastfetch config (install failed)"
+        return 1
+    fi
 
     # Create symlink for fastfetch config
     if [ -d "$suminami_dir/config/fastfetch" ]; then
@@ -669,10 +709,13 @@ install_basic_apps() {
 
     if [ "$has_image_viewer" = false ]; then
         print_status "Installing image viewer (imv)..."
-        sudo pacman -S --needed --noconfirm imv
-        # Set imv as default for common image types
-        xdg-mime default imv.desktop image/png image/jpeg image/jpg image/gif image/webp image/bmp image/tiff image/svg+xml 2>/dev/null
-        print_success "imv installed and set as default"
+        if pac_install imv; then
+            # Set imv as default for common image types
+            xdg-mime default imv.desktop image/png image/jpeg image/jpg image/gif image/webp image/bmp image/tiff image/svg+xml 2>/dev/null || true
+            print_success "imv installed and set as default"
+        else
+            print_warning "Could not install image viewer; skipping"
+        fi
     else
         print_status "Image viewer already installed, skipping"
     fi
@@ -690,8 +733,11 @@ install_basic_apps() {
 
     if [ "$has_text_editor" = false ]; then
         print_status "Installing text editor (mousepad)..."
-        sudo pacman -S --needed --noconfirm mousepad
-        print_success "mousepad installed"
+        if pac_install mousepad; then
+            print_success "mousepad installed"
+        else
+            print_warning "Could not install text editor; skipping"
+        fi
     else
         print_status "Text editor already installed, skipping"
     fi
@@ -735,19 +781,25 @@ install_screen_locker() {
 
     if [ "$has_locker" = false ]; then
         print_status "Installing hyprlock..."
-        sudo pacman -S --needed --noconfirm hyprlock
-        print_success "hyprlock installed"
+        if pac_install hyprlock; then
+            has_locker=true
+            print_success "hyprlock installed"
+        fi
     fi
 
     if [ "$has_idle" = false ]; then
         print_status "Installing hypridle..."
-        sudo pacman -S --needed --noconfirm hypridle
-        print_success "hypridle installed"
+        if pac_install hypridle; then
+            has_idle=true
+            print_success "hypridle installed"
+        fi
     fi
 
-    # Add hypridle to autostart if not already present
+    # Add hypridle to autostart only if it is actually available — appending the
+    # exec-once for a missing binary would just produce a dead autostart line.
     local env_conf="$HOME/.config/hypr/env.conf"
-    if [ -f "$env_conf" ] && ! grep -q "^exec-once = hypridle" "$env_conf"; then
+    if [ "$has_idle" = true ] && command -v hypridle &>/dev/null \
+        && [ -f "$env_conf" ] && ! grep -q "^exec-once = hypridle" "$env_conf"; then
         printf "\nexec-once = hypridle\n" >> "$env_conf"
         print_success "hypridle added to Hyprland autostart"
     fi
@@ -790,15 +842,20 @@ install_clipboard_persistence() {
     fi
 
     print_status "Installing wl-clip-persist from AUR..."
-    "$aur_helper" -S --needed --noconfirm wl-clip-persist
+    if ! "$aur_helper" -S --needed --noconfirm wl-clip-persist; then
+        print_warning "Could not install wl-clip-persist; skipping clipboard persistence"
+        return 1
+    fi
     print_success "wl-clip-persist installed"
 
-    # Add to Hyprland autostart if not already there
+    # Add to Hyprland autostart if not already there. Use printf with a leading
+    # newline (not echo) so the line can't get concatenated onto a previous line
+    # of an env.conf that lacks a trailing newline — a malformed exec-once line.
     local env_conf="$HOME/.config/hypr/env.conf"
     if [ -f "$env_conf" ]; then
         if ! grep -q "wl-clip-persist" "$env_conf"; then
             print_status "Adding wl-clip-persist to autostart..."
-            echo "exec-once = wl-clip-persist --clipboard both" >> "$env_conf"
+            printf "\nexec-once = wl-clip-persist --clipboard both\n" >> "$env_conf"
             print_success "Clipboard persistence configured"
         fi
     fi
@@ -824,13 +881,13 @@ install_tui_enhancements() {
 
     # Install cava from official repos
     print_status "Installing cava..."
-    sudo pacman -S --needed --noconfirm cava
-
-    # Create cava symlink
-    if [ -d "$suminami_dir/config/cava" ]; then
-        rm -rf "$HOME/.config/cava" 2>/dev/null || true
-        ln -sfn "$suminami_dir/config/cava" "$HOME/.config/cava"
-        print_success "cava config linked"
+    if pac_install cava; then
+        # Create cava symlink
+        if [ -d "$suminami_dir/config/cava" ]; then
+            rm -rf "$HOME/.config/cava" 2>/dev/null || true
+            ln -sfn "$suminami_dir/config/cava" "$HOME/.config/cava"
+            print_success "cava config linked"
+        fi
     fi
 
     # Ensure pipx path is set
@@ -875,7 +932,9 @@ _setup_tty_autostart() {
             ;;
     esac
 
-    if grep -q "exec Hyprland" "$rc_file" 2>/dev/null; then
+    # Match our own marker, not a bare "exec Hyprland" — a user's pre-existing
+    # launch line shouldn't make us skip adding the TTY1-guarded block.
+    if grep -q "SumiNami: start Hyprland on TTY1 login" "$rc_file" 2>/dev/null; then
         print_status "Hyprland TTY autostart already configured"
         return 0
     fi
@@ -889,6 +948,7 @@ _setup_tty_autostart() {
         autostart_block='\n# SumiNami: start Hyprland on TTY1 login\nif [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_VTNR" = "1" ]; then\n    exec Hyprland\nfi'
     fi
 
+    _backup_rc_once "$rc_file"
     printf "$autostart_block\n" >> "$rc_file"
     print_success "TTY autostart configured in $rc_file"
     print_warning "Log in on TTY1 after reboot and Hyprland will start automatically"
@@ -944,8 +1004,19 @@ setup_display_manager() {
     done
 
     if [ -n "$enabled_dm" ]; then
-        print_success "Display manager already enabled ($enabled_dm)"
-        return 0
+        # An enabled-but-failed DM (e.g. a broken SDDM from a previous run) would
+        # otherwise be reported as fine and skipped, leaving a black screen. If it
+        # failed this session, warn and fall through to the menu so it can be fixed.
+        if systemctl is-failed "$enabled_dm" &>/dev/null; then
+            print_warning "Display manager $enabled_dm is enabled but in a FAILED state."
+            print_warning "Continuing setup so you can repair or replace it."
+        else
+            print_success "Display manager already enabled ($enabled_dm)"
+            if [ "$enabled_dm" = sddm ] && [ ! -f /etc/sddm.conf.d/suminami-autologin.conf ]; then
+                print_status "(SDDM autologin not configured — you'll get the login screen. Re-run the SDDM option to enable it.)"
+            fi
+            return 0
+        fi
     fi
 
     echo ""
@@ -994,11 +1065,17 @@ setup_display_manager() {
                 fi
             fi
 
-            print_status "Installing and enabling SDDM..."
-            sudo pacman -S --needed --noconfirm sddm
-            sudo systemctl enable sddm
+            print_status "Installing SDDM..."
+            if ! pac_install sddm; then
+                print_error "Failed to install SDDM. Falling back to TTY autostart..."
+                _setup_tty_autostart
+                return 0
+            fi
 
+            # Verify the greeter BEFORE enabling, so SDDM is never left enabled in
+            # a broken state (which would black-screen the next boot).
             if _verify_sddm_greeter; then
+                sudo systemctl enable sddm
                 # Write complete autologin config with both User and Session.
                 # Without User=, SDDM falls back to the greeter — if it is
                 # broken this results in a black screen on reboot.
@@ -1009,7 +1086,9 @@ setup_display_manager() {
                 print_success "SDDM enabled - will start on next boot"
             else
                 print_error "Could not repair sddm-greeter. Disabling SDDM to prevent black screen."
-                sudo systemctl disable sddm
+                # No-op if we never enabled it this run; important if a broken
+                # SDDM was already enabled from a previous run (re-run repair path).
+                sudo systemctl disable sddm 2>/dev/null || true
                 echo ""
                 print_warning "To fix SDDM manually later:"
                 echo "    sudo pacman -S sddm qt6-declarative"
@@ -1022,9 +1101,13 @@ setup_display_manager() {
         2)
             _setup_tty_autostart
             ;;
-        *)
+        3)
             print_warning "Skipping display manager setup"
             print_warning "You may see a blank screen after reboot - enable a DM manually"
+            ;;
+        *)
+            print_warning "Invalid choice '$REPLY' — defaulting to TTY autostart (safe fallback)"
+            _setup_tty_autostart
             ;;
     esac
 }
@@ -1072,6 +1155,7 @@ setup_shell_integration() {
 
     # Add source line to rc file
     print_status "Adding shell integration to $rc_file..."
+    _backup_rc_once "$rc_file"
     echo "" >> "$rc_file"
     echo "# SumiNami shell integration" >> "$rc_file"
     echo "$source_line" >> "$rc_file"
