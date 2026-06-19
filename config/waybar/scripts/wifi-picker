@@ -1,120 +1,80 @@
 #!/usr/bin/env python3
 """
-WiFi picker for waybar - uses NetworkManager D-Bus API for speed,
-falls back to nmcli if python-dbus unavailable.
+WiFi picker for waybar.
 
-Features: Connect, disconnect, rescan, shows signal strength
+Auto-detects a backend (NetworkManager via nmcli, then iwd via iwctl) and shows
+a rofi menu to connect / disconnect / rescan.
+
+Designed to NEVER fail silently: a missing tool (e.g. iwgetid/wireless_tools not
+installed) or any other error raises a desktop notification telling the user what
+to do, instead of the click appearing to do nothing.
+
+Override entirely with `wifi_click_command=` in ~/.config/waybar/suminami.conf.
 """
 
+import os
+import re
+import shutil
 import subprocess
 import sys
 
-def get_current_connection():
-    """Get currently connected WiFi SSID, or None"""
-    # Use iwgetid for reliable SSID detection
-    result = subprocess.run(['iwgetid', '-r'], capture_output=True, text=True)
-    ssid = result.stdout.strip()
-    if ssid:
-        return ssid
+# Strip terminal colour codes from iwctl output before parsing.
+ANSI = re.compile(r'\x1b\[[0-9;?]*[ -/]*[@-~]')
 
-    # Fallback to nmcli
-    result = subprocess.run(
-        ['nmcli', '-t', '-f', 'NAME,TYPE', 'con', 'show', '--active'],
-        capture_output=True, text=True
-    )
-    for line in result.stdout.strip().split('\n'):
-        parts = line.split(':')
-        if len(parts) >= 2 and parts[1] == 'wifi':
-            return parts[0]
-    return None
 
-def get_connection_type():
-    """Check if we're on ethernet or wifi"""
-    result = subprocess.run(
-        ['nmcli', '-t', '-f', 'type,state', 'dev'],
-        capture_output=True, text=True
-    )
-    for line in result.stdout.strip().split('\n'):
-        parts = line.split(':')
-        if len(parts) >= 2 and parts[1] == 'connected':
-            return parts[0]  # 'wifi' or 'ethernet'
-    return None
+def notify(summary, body='', timeout=4000):
+    """Desktop notification; also echo to stderr in case notify-send is absent."""
+    if shutil.which('notify-send'):
+        subprocess.run(['notify-send', '-t', str(timeout), summary, body])
+    sys.stderr.write(f'wifi-picker: {summary} {body}\n'.rstrip() + '\n')
 
-def get_networks_dbus():
-    """Fast method using D-Bus (requires python-dbus)"""
-    import dbus
 
-    bus = dbus.SystemBus()
-    nm = bus.get_object('org.freedesktop.NetworkManager', '/org/freedesktop/NetworkManager')
-    nm_props = dbus.Interface(nm, 'org.freedesktop.DBus.Properties')
+def run(args, timeout=None):
+    """subprocess.run that never raises on a missing binary or a hang.
 
-    # Find wifi device
-    devices = nm_props.Get('org.freedesktop.NetworkManager', 'AllDevices')
-    wifi_dev = None
-    wifi_props = None
-    for dev_path in devices:
-        dev = bus.get_object('org.freedesktop.NetworkManager', dev_path)
-        dev_props = dbus.Interface(dev, 'org.freedesktop.DBus.Properties')
-        if dev_props.Get('org.freedesktop.NetworkManager.Device', 'DeviceType') == 2:
-            wifi_dev = dbus.Interface(dev, 'org.freedesktop.NetworkManager.Device.Wireless')
-            wifi_props = dev_props
-            break
-
-    if not wifi_props:
-        return []
-
+    Returns a CompletedProcess; a missing binary yields returncode 127 and a
+    timeout yields 124, so callers can branch on it instead of crashing.
+    """
     try:
-        active_ap = wifi_props.Get('org.freedesktop.NetworkManager.Device.Wireless', 'ActiveAccessPoint')
-    except:
-        active_ap = None
+        return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    except FileNotFoundError:
+        return subprocess.CompletedProcess(args, 127, '', f'{args[0]}: not found')
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(args, 124, '', f'{args[0]}: timed out')
 
-    ap_paths = wifi_props.Get('org.freedesktop.NetworkManager.Device.Wireless', 'AccessPoints')
 
-    networks = {}
-    for ap_path in ap_paths:
-        ap = bus.get_object('org.freedesktop.NetworkManager', ap_path)
-        ap_props = dbus.Interface(ap, 'org.freedesktop.DBus.Properties')
+def have(binary):
+    return shutil.which(binary) is not None
 
-        ssid_bytes = ap_props.Get('org.freedesktop.NetworkManager.AccessPoint', 'Ssid')
-        ssid = ''.join(chr(b) for b in ssid_bytes) if ssid_bytes else ''
-        if not ssid:
-            continue
 
-        strength = int(ap_props.Get('org.freedesktop.NetworkManager.AccessPoint', 'Strength'))
-        flags = int(ap_props.Get('org.freedesktop.NetworkManager.AccessPoint', 'WpaFlags'))
-        security = '󰒃' if flags else '󰒄'  # lock or unlock icon
-        is_active = (ap_path == active_ap)
+def check_custom_command():
+    """User-defined override from suminami.conf, or None."""
+    cfg = os.path.expanduser('~/.config/waybar/suminami.conf')
+    try:
+        with open(cfg) as f:
+            for line in f:
+                if line.startswith('wifi_click_command='):
+                    cmd = line.split('=', 1)[1].strip()
+                    if cmd:
+                        return cmd
+    except OSError:
+        pass
+    return None
 
-        if ssid not in networks or strength > networks[ssid][0]:
-            networks[ssid] = (strength, security, is_active)
 
-    return [(ssid, *data) for ssid, data in sorted(networks.items(), key=lambda x: -x[1][0])]
+def wifi_iface():
+    """First wireless interface name from sysfs, or None."""
+    base = '/sys/class/net'
+    try:
+        for dev in sorted(os.listdir(base)):
+            if os.path.isdir(os.path.join(base, dev, 'wireless')):
+                return dev
+    except OSError:
+        pass
+    return None
 
-def get_networks_nmcli():
-    """Fallback method using nmcli (slower, but no deps)"""
-    result = subprocess.run(
-        ['nmcli', '-t', '-f', 'active,ssid,signal,security', 'dev', 'wifi'],
-        capture_output=True, text=True
-    )
-
-    networks = {}
-    for line in result.stdout.strip().split('\n'):
-        if not line:
-            continue
-        parts = line.split(':')
-        if len(parts) < 4 or not parts[1]:
-            continue
-        active, ssid, signal, security = parts[0], parts[1], int(parts[2]), parts[3]
-        is_active = (active == 'yes')
-        sec_icon = '󰒃' if security and security != '--' else '󰒄'
-
-        if ssid not in networks or signal > networks[ssid][0]:
-            networks[ssid] = (signal, sec_icon, is_active)
-
-    return [(ssid, *data) for ssid, data in sorted(networks.items(), key=lambda x: -x[1][0])]
 
 def signal_icon(strength):
-    """Return signal strength icon"""
     if strength >= 80:
         return '󰤨'
     elif strength >= 60:
@@ -123,104 +83,244 @@ def signal_icon(strength):
         return '󰤢'
     elif strength >= 20:
         return '󰤟'
-    else:
-        return '󰤯'
+    return '󰤯'
 
-def check_custom_command():
-    """Check if user has configured a custom wifi click command"""
-    import os
-    config_file = os.path.expanduser('~/.config/waybar/suminami.conf')
-    if os.path.exists(config_file):
-        with open(config_file) as f:
-            for line in f:
-                if line.startswith('wifi_click_command='):
-                    cmd = line.split('=', 1)[1].strip()
-                    if cmd:
-                        return cmd
-    return None
 
-def main():
-    # Check for custom command override
-    custom_cmd = check_custom_command()
-    if custom_cmd:
-        subprocess.run(custom_cmd, shell=True)
-        sys.exit(0)
-
-    current_ssid = get_current_connection()
-    conn_type = get_connection_type()
-
-    # Try fast D-Bus method, fall back to nmcli
+def rofi(args, input_text=''):
+    """Run rofi; if it is not installed, notify and exit cleanly."""
     try:
-        networks = get_networks_dbus()
-    except ImportError:
-        networks = get_networks_nmcli()
-    except Exception:
-        networks = get_networks_nmcli()
-
-    # Format for picker
-    lines = []
-
-    # Add action options at top
-    if current_ssid:
-        lines.append(f"󰖪  Disconnect from {current_ssid}|disconnect")
-
-    lines.append("󰑓  Rescan networks|rescan")
-    lines.append("─────────────────────────|separator")
-
-    # Add networks
-    for ssid, strength, security, is_active in networks:
-        sig_icon = signal_icon(strength)
-        if is_active:
-            lines.append(f"󰤨  {ssid}  {strength}%  {security}  (connected)|connected:{ssid}")
-        else:
-            lines.append(f"{sig_icon}  {ssid}  {strength}%  {security}|connect:{ssid}")
-
-    if not networks:
-        lines.append("󰤭  No networks found|none")
-
-    # Display only (strip actions for rofi)
-    display_lines = [l.split('|')[0] for l in lines]
-
-    # Use rofi
-    try:
-        result = subprocess.run(['rofi', '-dmenu', '-cycle', '-p', 'WiFi'], input='\n'.join(display_lines), capture_output=True, text=True)
+        return subprocess.run(['rofi', *args], input=input_text,
+                              capture_output=True, text=True)
     except FileNotFoundError:
-        subprocess.run(['notify-send', 'WiFi', 'rofi not found'])
+        notify('WiFi', 'rofi is not installed')
         sys.exit(1)
 
-    if result.returncode != 0 or not result.stdout.strip():
-        sys.exit(0)
 
-    # Find matching action
-    selected = result.stdout.strip()
-    action = None
-    for line in lines:
-        if line.split('|')[0] == selected:
-            action = line.split('|')[1] if '|' in line else None
-            break
+def rofi_password(prompt):
+    r = rofi(['-dmenu', '-password', '-p', prompt])
+    if r.returncode != 0:
+        return None
+    return r.stdout.strip() or None
 
-    if not action or action == 'separator' or action == 'none':
-        sys.exit(0)
 
-    # Execute action
+class NmcliBackend:
+    """NetworkManager backend."""
+    name = 'NetworkManager'
+
+    @staticmethod
+    def detect():
+        return NmcliBackend() if have('nmcli') else None
+
+    def current_ssid(self):
+        r = run(['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'])
+        for line in r.stdout.splitlines():
+            parts = _nmcli_split(line)
+            if len(parts) >= 2 and parts[0] == 'yes':
+                return parts[1]
+        return None
+
+    def networks(self):
+        r = run(['nmcli', '-t', '-f', 'active,ssid,signal,security', 'dev', 'wifi'])
+        nets = {}
+        for line in r.stdout.splitlines():
+            parts = _nmcli_split(line)
+            if len(parts) < 4 or not parts[1]:
+                continue
+            active, ssid, signal, security = parts[0], parts[1], parts[2], parts[3]
+            try:
+                signal = int(signal)
+            except ValueError:
+                signal = 0
+            secure = bool(security and security != '--')
+            is_active = (active == 'yes')
+            if ssid not in nets or signal > nets[ssid][0]:
+                nets[ssid] = (signal, secure, is_active)
+        return _sorted_nets(nets)
+
+    def connect(self, ssid, secure):
+        # Known connection profile first (no password needed).
+        if run(['nmcli', 'con', 'up', ssid]).returncode == 0:
+            return True, ''
+        # Otherwise associate as a new network.
+        r = run(['nmcli', 'dev', 'wifi', 'connect', ssid])
+        if r.returncode == 0:
+            return True, ''
+        if secure:
+            pw = rofi_password(f'Password for {ssid}')
+            if pw:
+                r = run(['nmcli', 'dev', 'wifi', 'connect', ssid, 'password', pw])
+                return r.returncode == 0, r.stderr.strip()
+        return False, r.stderr.strip()
+
+    def disconnect(self, ssid):
+        run(['nmcli', 'con', 'down', ssid])
+
+    def rescan(self):
+        run(['nmcli', 'dev', 'wifi', 'rescan'])
+
+
+class IwdBackend:
+    """iwd backend (iwctl)."""
+    name = 'iwd'
+
+    def __init__(self, iface):
+        self.iface = iface
+
+    @staticmethod
+    def detect():
+        if not have('iwctl'):
+            return None
+        iface = wifi_iface()
+        return IwdBackend(iface) if iface else None
+
+    def current_ssid(self):
+        out = ANSI.sub('', run(['iwctl', 'station', self.iface, 'show']).stdout)
+        for line in out.splitlines():
+            m = re.match(r'\s*Connected network\s+(.+?)\s*$', line)
+            if m:
+                return m.group(1).strip()
+        return None
+
+    def networks(self):
+        out = ANSI.sub('', run(
+            ['iwctl', 'station', self.iface, 'get-networks', 'rssi-dbms']).stdout)
+        current = self.current_ssid()
+        nets = {}
+        for raw in out.splitlines():
+            line = raw.rstrip()
+            stripped = line.strip()
+            if not stripped or set(stripped) <= set('-'):
+                continue
+            if 'Available networks' in line or (
+                    'Network name' in line and 'Security' in line):
+                continue
+            m = re.match(r'\s*(>?)\s*(.+?)\s+(open|psk|wep|8021x)\s+(-?\d+)\s*$', line)
+            if m:
+                marker, ssid, _sec, dbm = m.groups()
+                dbm = int(dbm)
+                secure = (_sec != 'open')
+            else:
+                toks = stripped.split()
+                if len(toks) < 3:
+                    continue
+                marker = '>' if toks[0] == '>' else ''
+                if marker:
+                    toks = toks[1:]
+                try:
+                    dbm = int(toks[-1])
+                except ValueError:
+                    continue
+                secure = (toks[-2] != 'open')
+                ssid = ' '.join(toks[:-2])
+            if not ssid:
+                continue
+            # iwd reports RSSI in dBm; map to a rough 0-100% like the bar script.
+            strength = max(0, min(100, 2 * (dbm + 100)))
+            is_active = bool(marker) or (ssid == current)
+            if ssid not in nets or strength > nets[ssid][0]:
+                nets[ssid] = (strength, secure, is_active)
+        return _sorted_nets(nets)
+
+    def connect(self, ssid, secure):
+        # Try a quick connect (works for already-known networks).
+        if run(['iwctl', 'station', self.iface, 'connect', ssid],
+               timeout=10).returncode == 0:
+            return True, ''
+        if secure:
+            pw = rofi_password(f'Password for {ssid}')
+            if pw:
+                r = run(['iwctl', '--passphrase', pw, 'station', self.iface,
+                         'connect', ssid], timeout=20)
+                return r.returncode == 0, r.stderr.strip()
+        return False, 'connection failed'
+
+    def disconnect(self, ssid):
+        run(['iwctl', 'station', self.iface, 'disconnect'])
+
+    def rescan(self):
+        run(['iwctl', 'station', self.iface, 'scan'])
+
+
+def _nmcli_split(line):
+    """Split an nmcli -t line on unescaped ':' and unescape the fields."""
+    parts = re.split(r'(?<!\\):', line)
+    return [p.replace('\\:', ':') for p in parts]
+
+
+def _sorted_nets(nets):
+    """dict{ssid: (strength, secure, is_active)} -> list sorted by strength desc."""
+    return [(ssid, v[0], v[1], v[2])
+            for ssid, v in sorted(nets.items(), key=lambda x: -x[1][0])]
+
+
+def main():
+    custom = check_custom_command()
+    if custom:
+        subprocess.run(custom, shell=True)
+        return
+
+    backend = NmcliBackend.detect() or IwdBackend.detect()
+    if backend is None:
+        notify('WiFi', 'No supported backend found.\n'
+               'Install networkmanager (nmcli) or iwd (iwctl), or set '
+               'wifi_click_command= in ~/.config/waybar/suminami.conf')
+        return
+
+    current = backend.current_ssid()
+    networks = backend.networks()
+
+    # Each entry: (display label, action). Actions carrying an SSID use a tab
+    # delimiter so SSIDs containing spaces/colons survive the round-trip.
+    entries = []
+    if current:
+        entries.append((f'󰖪  Disconnect from {current}', 'disconnect'))
+    entries.append(('󰑓  Rescan networks', 'rescan'))
+    entries.append(('─────────────────────────', 'separator'))
+
+    if networks:
+        for ssid, strength, secure, is_active in networks:
+            sec = '󰒃' if secure else '󰒄'
+            if is_active:
+                entries.append(
+                    (f'󰤨  {ssid}  {strength}%  {sec}  (connected)', 'connected'))
+            else:
+                entries.append(
+                    (f'{signal_icon(strength)}  {ssid}  {strength}%  {sec}',
+                     f'connect\t{ssid}\t{int(secure)}'))
+    else:
+        entries.append(('󰤭  No networks found', 'none'))
+
+    r = rofi(['-dmenu', '-cycle', '-p', 'WiFi'],
+             '\n'.join(label for label, _ in entries))
+    if r.returncode != 0 or not r.stdout.strip():
+        return
+
+    selected = r.stdout.strip()
+    action = next((a for label, a in entries if label == selected), None)
+    if not action or action in ('separator', 'none', 'connected'):
+        return
+
     if action == 'disconnect':
-        subprocess.run(['nmcli', 'con', 'down', current_ssid])
-        subprocess.run(['notify-send', 'WiFi', f'Disconnected from {current_ssid}', '-t', '2000'])
+        backend.disconnect(current)
+        notify('WiFi', f'Disconnected from {current}', 2000)
     elif action == 'rescan':
-        subprocess.run(['notify-send', 'WiFi', 'Scanning...', '-t', '1000'])
-        subprocess.run(['nmcli', 'dev', 'wifi', 'rescan'])
-        # Re-run picker after scan
-        subprocess.Popen([sys.argv[0]])
-    elif action.startswith('connect:'):
-        ssid = action.split(':', 1)[1]
-        subprocess.run(['notify-send', 'WiFi', f'Connecting to {ssid}...', '-t', '2000'])
-        result = subprocess.run(['nmcli', 'con', 'up', ssid], capture_output=True, text=True)
-        if result.returncode != 0:
-            # Try connecting as new network (will prompt for password)
-            subprocess.run(['nmcli', 'dev', 'wifi', 'connect', ssid])
-    elif action.startswith('connected:'):
-        # Already connected, do nothing
-        pass
+        notify('WiFi', 'Scanning…', 1000)
+        backend.rescan()
+        subprocess.Popen([sys.executable, os.path.abspath(__file__)])
+    elif action.startswith('connect\t'):
+        _, ssid, sec_flag = action.split('\t', 2)
+        notify('WiFi', f'Connecting to {ssid}…', 2000)
+        ok, err = backend.connect(ssid, sec_flag == '1')
+        if ok:
+            notify('WiFi', f'Connected to {ssid}', 2000)
+        else:
+            notify('WiFi', f'Failed to connect to {ssid}'
+                   + (f'\n{err}' if err else ''))
+
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as exc:  # never let the click silently do nothing
+        notify('WiFi picker error', str(exc))
+        sys.exit(1)
