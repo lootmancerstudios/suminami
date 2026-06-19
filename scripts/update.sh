@@ -2,7 +2,15 @@
 # Suminami Update Script
 # Pulls latest changes and reloads all components
 
+set -uo pipefail
+
 SUMINAMI_DIR="$HOME/.config/suminami"
+
+# Network git wrapper: abort a dead/stalled transfer instead of hanging forever
+# (does not kill a slow-but-progressing download).
+git_net() {
+    timeout 300 git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 "$@"
+}
 
 # Colors
 GREEN='\033[0;32m'
@@ -16,11 +24,11 @@ echo ""
 
 # Pull latest changes (stash local modifications that conflict)
 echo -e "${BLUE}[*]${NC} Pulling latest changes..."
-cd "$SUMINAMI_DIR"
-if ! git pull 2>/dev/null; then
+cd "$SUMINAMI_DIR" || { echo -e "${RED}[!]${NC} Cannot access $SUMINAMI_DIR"; exit 1; }
+if ! git_net pull 2>/dev/null; then
     echo -e "${YELLOW}[!]${NC} Local changes detected, stashing before pull..."
     git stash
-    if ! git pull; then
+    if ! git_net pull; then
         echo -e "${RED}[!]${NC} Pull failed"
         git stash pop 2>/dev/null
         echo -e "Press Enter to close..."

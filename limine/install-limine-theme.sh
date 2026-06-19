@@ -121,7 +121,16 @@ main() {
     # Check if theme already applied
     if grep -q "SumiNami Limine Theme" "$LIMINE_CONF" 2>/dev/null; then
         print_warning "Theme already present in config, updating..."
-        # Remove old theme block (everything between markers)
+        # Remove the old theme block (everything between the start and end markers).
+        # Guard: with the start marker present but the end marker missing, the sed
+        # range would run to EOF and delete the real boot entries, leaving an
+        # unbootable config. Refuse and let the user clean up from the backup.
+        if ! grep -q '^# --- End SumiNami ---$' "$LIMINE_CONF"; then
+            print_error "Found the SumiNami start marker but not the end marker."
+            print_error "Auto-removing the old block could truncate $LIMINE_CONF."
+            print_error "A backup was saved to $BACKUP. Remove the SumiNami section manually, then re-run."
+            exit 1
+        fi
         sudo sed -i '/# SumiNami Limine Theme/,/^# --- End SumiNami ---$/d' "$LIMINE_CONF"
     fi
 

@@ -123,7 +123,8 @@ main() {
 
     # Create background from wallpaper
     WALLPAPER="$SUMINAMI_DIR/wallpapers/kanagawa.jpg"
-    TMP_BG="/tmp/suminami-grub-bg.png"
+    # mktemp avoids a predictable /tmp path (symlink pre-placement attack surface)
+    TMP_BG=$(mktemp --suffix=.png)
 
     if create_background "$WALLPAPER" "$TMP_BG"; then
         sudo cp "$TMP_BG" "$THEME_DEST/background.png"

@@ -64,6 +64,14 @@ curl -s https://raw.githubusercontent.com/lootmancerstudios/suminami/main/instal
 
 > Works in bash, zsh, and fish.
 
+**Prefer to review before running?** The installer uses `sudo` to install packages, so it's reasonable to inspect it first:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/lootmancerstudios/suminami/main/install.sh
+less install.sh   # review
+bash install.sh
+```
+
 ## Theme System
 
 Themes are defined centrally in `themes/` and applied across all components. Changing your theme updates everything at once.
