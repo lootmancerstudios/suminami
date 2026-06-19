@@ -1,6 +1,8 @@
 #!/bin/bash
 # SumiNami SDDM Theme Installer
 
+set -e
+
 THEME_DIR="/usr/share/sddm/themes/suminami"
 SOURCE_DIR="$(dirname "$(readlink -f "$0")")/suminami"
 
@@ -15,7 +17,13 @@ fi
 
 # Copy theme files
 if [ -d "$SOURCE_DIR" ]; then
-    rm -rf "$THEME_DIR"
+    # Back up any existing theme before replacing it (matches the GRUB/Limine installers)
+    if [ -d "$THEME_DIR" ]; then
+        BACKUP="${THEME_DIR}.backup.$(date +%Y%m%d_%H%M%S)"
+        echo "Backing up existing theme to $BACKUP"
+        cp -r "$THEME_DIR" "$BACKUP"
+        rm -rf "$THEME_DIR"
+    fi
     cp -r "$SOURCE_DIR" "$THEME_DIR"
     echo "Theme files installed to $THEME_DIR"
 else
