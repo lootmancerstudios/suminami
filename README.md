@@ -72,6 +72,19 @@ less install.sh   # review
 bash install.sh
 ```
 
+## Timezone (for travelers)
+
+Linux keeps a **fixed** timezone — it won't follow you when you travel, so your clock can show the wrong time in a new region. Two options:
+
+- **Automatic:** the installer offers an opt-in prompt (default **off**) to enable automatic timezone updates via `tzupdate` (a systemd timer that detects your location from your IP). Enable it if you move between timezones often.
+- **Manual:** set it yourself anytime:
+
+  ```bash
+  sudo timedatectl set-timezone America/Toronto   # see: timedatectl list-timezones
+  ```
+
+The Waybar clock follows the system timezone automatically — no config change needed.
+
 ## Theme System
 
 Themes are defined centrally in `themes/` and applied across all components. Changing your theme updates everything at once.
