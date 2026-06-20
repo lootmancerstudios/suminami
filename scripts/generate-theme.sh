@@ -213,6 +213,7 @@ generate_waybar_colors() {
 @define-color module-muted $module_muted;
 @define-color state-warning $ACCENT_WARNING;
 @define-color state-critical $ACCENT_ERROR;
+@define-color module-updates $ACCENT_PRIMARY;
 EOF
     echo "  ✓ Waybar colors generated"
 }

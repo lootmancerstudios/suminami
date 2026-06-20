@@ -14,6 +14,7 @@
     "modules-center": [],
     "modules-right": [
         "tray",
+        "custom/updates",
         "custom/recording",
         "custom/cpu",
         "custom/memory",
@@ -158,6 +159,12 @@
         "on-scroll-down": "playerctl previous"
     },
 
+    "custom/updates": {
+        "exec": "~/.config/waybar/scripts/updates",
+        "return-type": "json",
+        "interval": 3600,
+        "on-click": "~/.config/waybar/scripts/terminal-exec $HOME/.config/suminami/scripts/update.sh"
+    },
     "custom/power-profile": {
         "exec": "~/.config/waybar/scripts/power-profile",
         "return-type": "json",
