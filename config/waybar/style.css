@@ -376,3 +376,30 @@ tooltip label {
     background: alpha(@sumiInk4, 0.9);
     animation: none;
 }
+
+/* Update-available indicator: gentle breathing accent icon, hidden otherwise */
+@keyframes breathing-updates {
+    from { opacity: 1; }
+    to { opacity: 0.55; }
+}
+
+#custom-updates {
+    padding: 0;
+    margin: 0;
+}
+
+#custom-updates.available {
+    padding: 0 8px;
+    color: @module-updates;
+    animation: breathing-updates 3s ease-in-out infinite alternate;
+}
+
+#custom-updates.available:hover {
+    background: alpha(@sumiInk4, 0.9);
+    animation: none;
+}
+
+#custom-updates.none {
+    padding: 0;
+    margin: 0;
+}
