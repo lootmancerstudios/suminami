@@ -56,6 +56,12 @@ cd ~/.config/suminami && git pull
 
 The Hub menu update also regenerates themes and reloads all components automatically.
 
+**If an update ever reports "divergent branches" / "Pull failed":** your local copy drifted from upstream. Realign it (your gitignored `monitors.conf` is preserved):
+
+```bash
+cd ~/.config/suminami && git fetch origin && git reset --hard origin/main
+```
+
 ## Installation
 
 ```bash
