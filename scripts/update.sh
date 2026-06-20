@@ -22,20 +22,39 @@ NC='\033[0m'
 echo -e "${BLUE}Suminami Update${NC}"
 echo ""
 
-# Pull latest changes (stash local modifications that conflict)
-echo -e "${BLUE}[*]${NC} Pulling latest changes..."
+# Fetch + realign to upstream. The repo is meant to track origin, so on any
+# non-fast-forward (e.g. upstream history was realigned) we reset to origin
+# rather than failing with "divergent branches". Untracked / gitignored files
+# such as monitors.conf are never touched.
+echo -e "${BLUE}[*]${NC} Fetching latest changes..."
 cd "$SUMINAMI_DIR" || { echo -e "${RED}[!]${NC} Cannot access $SUMINAMI_DIR"; exit 1; }
-if ! git_net pull 2>/dev/null; then
-    echo -e "${YELLOW}[!]${NC} Local changes detected, stashing before pull..."
-    git stash
-    if ! git_net pull; then
-        echo -e "${RED}[!]${NC} Pull failed"
-        git stash pop 2>/dev/null
-        echo -e "Press Enter to close..."
-        read
-        exit 1
-    fi
-    git stash pop 2>/dev/null || echo -e "${YELLOW}[!]${NC} Some local changes conflicted with the update and were dropped"
+
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)
+
+if ! git_net fetch origin; then
+    echo -e "${RED}[!]${NC} Could not fetch from origin (offline?). Skipping update."
+    echo -e "Press Enter to close..."
+    read
+    exit 1
+fi
+
+# Preserve any local tracked edits so realigning can't silently discard them.
+autostashed=false
+if ! git diff --quiet HEAD 2>/dev/null; then
+    echo -e "${YELLOW}[!]${NC} Local changes detected, stashing before update..."
+    git stash push -m "suminami-update-autostash" >/dev/null 2>&1 && autostashed=true
+fi
+
+if git merge --ff-only "origin/$branch" >/dev/null 2>&1; then
+    echo -e "${GREEN}[+]${NC} Updated to latest."
+else
+    echo -e "${YELLOW}[!]${NC} Upstream history changed — realigning to origin/$branch..."
+    git reset --hard "origin/$branch"
+fi
+
+if [ "$autostashed" = true ]; then
+    git stash pop >/dev/null 2>&1 \
+        || echo -e "${YELLOW}[!]${NC} Some local changes conflicted with the update; they are kept in 'git stash'."
 fi
 
 echo ""
