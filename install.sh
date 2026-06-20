@@ -1163,6 +1163,87 @@ setup_shell_integration() {
     print_success "Shell integration configured (smart cd with zoxide)"
 }
 
+# Optional, opt-in (default off): keep the system timezone correct when you
+# travel. Uses tzupdate (IP geolocation) on a systemd timer — no geoclue/location
+# daemon. Aimed at users new to Linux who wouldn't know to run timedatectl.
+setup_auto_timezone() {
+    # Idempotent: skip if already set up
+    if systemctl is-enabled tzupdate.timer &>/dev/null; then
+        print_status "Automatic timezone already enabled"
+        return 0
+    fi
+
+    echo ""
+    echo -e "${BLUE}Automatic Timezone (optional)${NC}"
+    echo "  Updates your clock's timezone automatically when you travel."
+    echo "  Uses your IP address to detect your location (installs tzupdate)."
+    echo "  Leave this off to keep a fixed timezone (the normal default)."
+    echo ""
+    read -p "Enable automatic timezone? [y/N] " -n 1 -r
+    echo ""
+
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_status "Skipping automatic timezone (set one manually with: sudo timedatectl set-timezone <zone>)"
+        return 0
+    fi
+
+    # tzupdate is an AUR package
+    local aur_helper
+    aur_helper=$(get_aur_helper)
+    print_status "Installing tzupdate from AUR..."
+    if ! "$aur_helper" -S --needed --noconfirm tzupdate; then
+        print_warning "Could not install tzupdate; skipping automatic timezone"
+        return 1
+    fi
+
+    local tzupdate_bin
+    tzupdate_bin=$(command -v tzupdate)
+    if [ -z "$tzupdate_bin" ]; then
+        print_warning "tzupdate not found after install; skipping automatic timezone"
+        return 1
+    fi
+
+    print_status "Installing tzupdate systemd timer..."
+    # Service runs as root (writes /etc/localtime); waits for the network so it
+    # doesn't fire before connectivity is up.
+    sudo tee /etc/systemd/system/tzupdate.service >/dev/null <<EOF
+[Unit]
+Description=Update system timezone from IP geolocation (SumiNami)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=$tzupdate_bin
+EOF
+
+    sudo tee /etc/systemd/system/tzupdate.timer >/dev/null <<EOF
+[Unit]
+Description=Periodically update timezone from IP geolocation (SumiNami)
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+    sudo systemctl daemon-reload
+    if sudo systemctl enable --now tzupdate.timer; then
+        print_success "Automatic timezone enabled (updates on boot + hourly)"
+        print_status "Detecting your timezone now..."
+        if sudo "$tzupdate_bin" 2>/dev/null; then
+            print_success "Timezone set to $(timedatectl show -p Timezone --value 2>/dev/null)"
+        else
+            print_warning "Could not detect timezone right now (no network?); it will retry automatically."
+        fi
+    else
+        print_warning "Could not enable tzupdate.timer"
+    fi
+}
+
 # Main
 main() {
     # Re-attach stdin to the terminal so read prompts work when script is piped
@@ -1239,6 +1320,9 @@ main() {
 
     # Setup shell integration (zoxide)
     setup_shell_integration
+
+    # Optional: automatic timezone for travelers (opt-in, default off)
+    setup_auto_timezone
 
     echo ""
     print_success "Suminami installation complete!"
