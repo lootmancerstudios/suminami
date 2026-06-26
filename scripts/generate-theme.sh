@@ -41,6 +41,7 @@ generate_rofi() {
     accent:       $ACCENT_PRIMARY;
     urgent:       $ACCENT_ERROR;
     border-grey:  #dddddd;
+    backdrop:     rgba(0, 0, 0, 45%);
 
     background-color: transparent;
     text-color: @fg;
@@ -50,17 +51,41 @@ generate_rofi() {
 }
 
 window {
+    fullscreen: true;
+    background-color: @backdrop;
+    padding: 0;
+    children: [ mainbox ];
+}
+
+mainbox {
+    background-color: transparent;
+    orientation: vertical;
+    children: [ space-top, center-row, space-bottom ];
+}
+
+space-top    { expand: true; background-color: transparent; }
+space-bottom { expand: true; background-color: transparent; }
+
+center-row {
+    expand: false;
+    orientation: horizontal;
+    background-color: transparent;
+    children: [ space-left, card, space-right ];
+}
+
+space-left  { expand: true; background-color: transparent; }
+space-right { expand: true; background-color: transparent; }
+
+card {
+    expand: false;
+    width: 450px;
     background-color: @bg;
     border: 1px;
     border-color: @border-grey;
     border-radius: 0;
-    width: 450px;
     padding: 12px;
-}
-
-mainbox {
-    children: [inputbar, listview];
     spacing: 8px;
+    children: [inputbar, listview];
 }
 
 inputbar {
@@ -85,7 +110,7 @@ entry {
 listview {
     lines: 8;
     columns: 1;
-    fixed-height: false;
+    fixed-height: true;
     scrollbar: false;
     spacing: 2px;
 }

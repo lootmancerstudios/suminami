@@ -14,7 +14,7 @@ OPTIONS="󰀻  Apps
 # Show menu (rofi with cycle enabled, no search bar)
 CHOICE=$(echo -e "$OPTIONS" | rofi -dmenu -cycle \
     -theme-str 'inputbar { enabled: false; }' \
-    -theme-str 'window { width: 320px; }' \
+    -theme-str 'card { width: 320px; }' \
     -theme-str 'listview { lines: 6; }')
 
 # Handle selection

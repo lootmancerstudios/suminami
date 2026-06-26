@@ -44,7 +44,7 @@ while true; do
     # Show wallpaper list (filter for common image types)
     CHOICE=$(find "$WALLPAPER_DIR" -maxdepth 1 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" -o -iname "*.gif" \) -printf "%f\n" | sort | rofi -dmenu -cycle \
         -p "Select wallpaper" \
-        -theme-str 'window { width: 400px; }' \
+        -theme-str 'card { width: 400px; }' \
         -theme-str 'listview { lines: 8; }')
 
     # ESC pressed - revert and exit
@@ -67,7 +67,7 @@ while true; do
     CONFIRM=$(echo -e "  Keep this wallpaper\n  Try another" | rofi -dmenu -cycle \
         -p "$CHOICE" \
         -theme-str 'inputbar { enabled: false; }' \
-        -theme-str 'window { width: 320px; }' \
+        -theme-str 'card { width: 320px; }' \
         -theme-str 'listview { lines: 2; }')
 
     case "$CONFIRM" in

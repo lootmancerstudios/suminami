@@ -16,7 +16,8 @@ OPTIONS="󰉼  Kanagawa
 
 CHOICE=$(echo -e "$OPTIONS" | rofi -dmenu -cycle \
     -theme-str 'inputbar { enabled: false; }' \
-    -theme-str 'window { width: 320px; height: 360px; }')
+    -theme-str 'card { width: 320px; }' \
+    -theme-str 'listview { lines: 9; }')
 
 case "$CHOICE" in
     *"Kanagawa Lotus"*)
