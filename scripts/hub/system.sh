@@ -9,7 +9,7 @@ OPTIONS="󰌾  Lock
 
 CHOICE=$(echo -e "$OPTIONS" | rofi -dmenu -cycle \
     -theme-str 'inputbar { enabled: false; }' \
-    -theme-str 'window { width: 320px; }' \
+    -theme-str 'card { width: 320px; }' \
     -theme-str 'listview { lines: 5; }')
 
 case "$CHOICE" in

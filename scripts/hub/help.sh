@@ -42,7 +42,8 @@ show_keybinds() {
     # Show in rofi (no search, just browse with cycling)
     echo "$keybinds" | rofi -dmenu -cycle \
         -theme-str 'inputbar { enabled: false; }' \
-        -theme-str 'window { width: 550px; height: 500px; }'
+        -theme-str 'card { width: 550px; }' \
+        -theme-str 'listview { lines: 14; }'
 }
 
 OPTIONS="󰌌  Keybinds
@@ -51,7 +52,7 @@ OPTIONS="󰌌  Keybinds
 
 CHOICE=$(echo -e "$OPTIONS" | rofi -dmenu -cycle \
     -theme-str 'inputbar { enabled: false; }' \
-    -theme-str 'window { width: 320px; }' \
+    -theme-str 'card { width: 320px; }' \
     -theme-str 'listview { lines: 3; }')
 
 case "$CHOICE" in

@@ -8,7 +8,7 @@ OPTIONS="󰉼  Themes
 
 CHOICE=$(echo -e "$OPTIONS" | rofi -dmenu -cycle \
     -theme-str 'inputbar { enabled: false; }' \
-    -theme-str 'window { width: 320px; }' \
+    -theme-str 'card { width: 320px; }' \
     -theme-str 'listview { lines: 2; }')
 
 case "$CHOICE" in
