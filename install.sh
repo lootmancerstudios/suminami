@@ -557,8 +557,7 @@ install_sddm_theme() {
         print_status "Installing SDDM theme (requires sudo)..."
 
         if [ -d "$theme_source" ]; then
-            # Back up an existing theme before replacing it (matches the
-            # standalone sddm/install-sddm-theme.sh installer).
+            # Back up an existing theme before replacing it.
             if [ -d "$theme_dest" ]; then
                 local backup="${theme_dest}.backup.$(date +%Y%m%d_%H%M%S)"
                 print_status "Backing up existing theme to $backup"
@@ -629,7 +628,8 @@ install_limine_theme() {
 
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         if [ -x "$limine_installer" ]; then
-            "$limine_installer"
+            # --yes: we already asked, don't make the user confirm twice
+            "$limine_installer" --yes
         else
             print_error "Limine installer not found at $limine_installer"
         fi
@@ -655,7 +655,8 @@ install_grub_theme() {
 
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         if [ -x "$grub_installer" ]; then
-            "$grub_installer"
+            # --yes: we already asked, don't make the user confirm twice
+            "$grub_installer" --yes
         else
             print_error "GRUB installer not found at $grub_installer"
         fi

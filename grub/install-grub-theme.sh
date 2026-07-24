@@ -80,6 +80,15 @@ create_background() {
 
 # Main installation
 main() {
+    # --yes skips the confirmation prompt. install.sh passes it because it has
+    # already asked; without it the user is asked the same question twice.
+    local assume_yes=false
+    for arg in "$@"; do
+        case "$arg" in
+            -y|--yes) assume_yes=true ;;
+        esac
+    done
+
     echo ""
     echo -e "${BLUE}SumiNami GRUB Theme Installer${NC}"
     echo ""
@@ -98,13 +107,15 @@ main() {
     print_status "Theme will be installed to: $THEME_DEST"
 
     # Confirm
-    echo ""
-    read -p "Install SumiNami GRUB theme? [y/N] " -n 1 -r
-    echo ""
+    if [ "$assume_yes" != true ]; then
+        echo ""
+        read -p "Install SumiNami GRUB theme? [y/N] " -n 1 -r
+        echo ""
 
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_warning "Cancelled"
-        exit 0
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_warning "Cancelled"
+            exit 0
+        fi
     fi
 
     # Backup existing GRUB config
