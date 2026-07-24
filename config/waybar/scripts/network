@@ -14,6 +14,7 @@ source "$SCRIPT_DIR/colors.sh" 2>/dev/null || {
     COLOR_WARNING="#E6C384"
     COLOR_CRITICAL="#E46876"
 }
+source "$SCRIPT_DIR/lib.sh"
 
 STATE_FILE="/tmp/waybar-network-state"
 
@@ -158,11 +159,13 @@ if $is_wifi; then
     freq=$(iwgetid -f 2>/dev/null | awk -F: '{gsub(/ /,"",$2); print $2}')
     [ -z "$freq" ] && freq=$(iw dev "$iface" link 2>/dev/null | awk '/freq:/ {print $2/1000 "GHz"}')
 
-    # Bar text
-    text="󰖩 $ssid"
+    # Bar text. The SSID is chosen by whoever runs the access point, so it is
+    # escaped before it reaches the JSON string or the Pango tooltip.
+    ssid_esc=$(esc "$ssid")
+    text="󰖩 $ssid_esc"
 
     # Tooltip
-    tooltip="<span color='$accent'><b>$ssid</b></span>"
+    tooltip="<span color='$accent'><b>$ssid_esc</b></span>"
     tooltip="$tooltip\n<span color='$signal_color'>$signal_bar</span> <span color='$signal_color'>${signal}%</span>"
     [ -n "$freq" ] && tooltip="$tooltip <span color='$gray'>($freq)</span>"
     tooltip="$tooltip\n"

@@ -13,6 +13,7 @@ source "$SCRIPT_DIR/colors.sh" 2>/dev/null || {
     COLOR_WARNING="#E6C384"
     COLOR_CRITICAL="#E46876"
 }
+source "$SCRIPT_DIR/lib.sh"
 
 # Theme colors
 accent="$COLOR_ACCENT"
@@ -164,14 +165,18 @@ while IFS= read -r line; do
         *watch*) icon="󰖉" ;;
     esac
 
+    # The device sets its own advertised name, so escape it before it reaches
+    # the JSON string or the Pango tooltip.
+    name_esc=$(esc "$name")
+
     if [ -n "$battery" ] && [ "$battery" -gt 0 ] 2>/dev/null; then
         # Color based on battery level
         bat_color="$green"
         [ "$battery" -lt 50 ] && bat_color="$yellow"
         [ "$battery" -lt 20 ] && bat_color="$red"
-        tooltip="$tooltip\n<span color='$blue'>$icon</span> <span color='$white'>$name</span> <span color='$bat_color'>${battery}%</span>"
+        tooltip="$tooltip\n<span color='$blue'>$icon</span> <span color='$white'>$name_esc</span> <span color='$bat_color'>${battery}%</span>"
     else
-        tooltip="$tooltip\n<span color='$blue'>$icon</span> <span color='$white'>$name</span>"
+        tooltip="$tooltip\n<span color='$blue'>$icon</span> <span color='$white'>$name_esc</span>"
     fi
 done <<< "$connected_devices"
 

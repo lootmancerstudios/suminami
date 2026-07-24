@@ -14,6 +14,7 @@ source "$SCRIPT_DIR/colors.sh" 2>/dev/null || {
     COLOR_SYSTEM="#98BB6C"
     COLOR_NETWORK="#957FB8"
 }
+source "$SCRIPT_DIR/lib.sh"
 
 # Theme colors
 pink="$COLOR_ACCENT"
@@ -93,10 +94,11 @@ else
     text="$icon $display"
 fi
 
-# Build tooltip
-tooltip="<span color='$pink'><b>$title</b></span>"
-[ -n "$artist" ] && tooltip="$tooltip\n<span color='$white'>$artist</span>"
-[ -n "$album" ] && tooltip="$tooltip\n<span color='$gray'>$album</span>"
+# Build tooltip. Metadata is escaped at insertion, after truncation, so a
+# multi-byte entity can never be cut in half.
+tooltip="<span color='$pink'><b>$(esc "$title")</b></span>"
+[ -n "$artist" ] && tooltip="$tooltip\n<span color='$white'>$(esc "$artist")</span>"
+[ -n "$album" ] && tooltip="$tooltip\n<span color='$gray'>$(esc "$album")</span>"
 tooltip="$tooltip\n"
 
 # Progress if available
@@ -112,9 +114,9 @@ if [ -n "$position" ] && [ -n "$duration" ] && [ "$duration" -gt 0 ]; then
 fi
 
 # Player name
-[ -n "$player" ] && tooltip="$tooltip\n<span color='$gray'>$player</span>"
+[ -n "$player" ] && tooltip="$tooltip\n<span color='$gray'>$(esc "$player")</span>"
 
 tooltip="$tooltip\n"
 tooltip="$tooltip\n<span color='$gray'>Click: play/pause • Scroll: prev/next</span>"
 
-echo "{\"text\": \"$text\", \"tooltip\": \"$tooltip\", \"class\": \"$class\"}"
+echo "{\"text\": \"$(esc "$text")\", \"tooltip\": \"$tooltip\", \"class\": \"$class\"}"
