@@ -12,6 +12,7 @@ source "$SCRIPT_DIR/colors.sh" 2>/dev/null || {
     COLOR_WARNING="#E6C384"
     COLOR_CRITICAL="#E46876"
 }
+source "$SCRIPT_DIR/lib.sh"
 
 # Theme colors
 accent="$COLOR_ACCENT"
@@ -90,7 +91,7 @@ if [ -n "$source" ]; then
         [ ${#mic_desc} -gt 30 ] && mic_desc="${mic_desc:0:27}..."
         mic_info="\n\n<span color='$accent'><b>Microphone</b></span>"
         mic_info="$mic_info\n<span color='$mic_color'>$mic_icon ${mic_vol}%</span>"
-        [ -n "$mic_desc" ] && mic_info="$mic_info\n<span color='$gray'>$mic_desc</span>"
+        [ -n "$mic_desc" ] && mic_info="$mic_info\n<span color='$gray'>$(esc "$mic_desc")</span>"
     fi
 fi
 
@@ -101,7 +102,7 @@ if [ "$muted" = "yes" ]; then
 else
     tooltip="$tooltip\n<span color='$vol_color'>󰕾 ${volume}%</span>"
 fi
-tooltip="$tooltip\n<span color='$gray'>$description</span>"
+tooltip="$tooltip\n<span color='$gray'>$(esc "$description")</span>"
 tooltip="$tooltip\n"
 tooltip="$tooltip\n<span color='$gray'>Click to mute • Right-click for mixer</span>"
 tooltip="$tooltip\n<span color='$gray'>Scroll to adjust volume</span>"

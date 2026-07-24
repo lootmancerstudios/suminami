@@ -11,8 +11,15 @@ import time
 import urllib.parse
 import urllib.request
 
-CACHE_FILE = "/tmp/waybar-weather-cache"
-LOCATION_CACHE_FILE = "/tmp/waybar-weather-location"
+# Cache under XDG_CACHE_HOME rather than a fixed /tmp path: two users on the
+# same machine would otherwise collide on one filename, and the loser's writes
+# fail silently, leaving the widget frozen on stale data.
+CACHE_DIR = os.path.join(
+    os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"),
+    "suminami",
+)
+CACHE_FILE = os.path.join(CACHE_DIR, "weather-cache")
+LOCATION_CACHE_FILE = os.path.join(CACHE_DIR, "weather-location")
 CACHE_MAX_AGE = 600       # 10 minutes - only fetch weather if cache older than this
 LOCATION_MAX_AGE = 3600   # 1 hour - re-geocode in case user has travelled
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -61,6 +68,7 @@ def load_cache():
 
 def save_cache(data):
     try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
         with open(CACHE_FILE, 'w') as f:
             json.dump(data, f)
     except Exception:
@@ -94,6 +102,7 @@ def load_location_cache():
 
 def save_location_cache(city):
     try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
         with open(LOCATION_CACHE_FILE, 'w') as f:
             f.write(city)
     except Exception:
@@ -220,6 +229,16 @@ def resolve_city(data):
     # Fallback: raw query string
     return query_str if query_str else "Unknown"
 
+def esc_pango(text):
+    """Escape markup metacharacters in external text (city name, condition).
+
+    json.dumps() already covers the JSON layer; this covers the Pango tooltip,
+    where a stray & or < makes the whole tooltip fail to parse and render empty.
+    """
+    return (str(text).replace("&", "&amp;")
+                     .replace("<", "&lt;")
+                     .replace(">", "&gt;"))
+
 def format_output(data):
     try:
         current = data["current_condition"][0]
@@ -231,12 +250,13 @@ def format_output(data):
         humidity = current["humidity"]
         wind_kmph = current["windspeedKmph"]
         wind_dir = current["winddir16Point"]
-        condition = current["weatherDesc"][0]["value"]
+        condition = esc_pango(current["weatherDesc"][0]["value"])
         code = current["weatherCode"]
         sunrise = astro["sunrise"]
         sunset = astro["sunset"]
 
-        city = resolve_city(data)
+        # Escape at display time; the location cache still stores the raw name.
+        city = esc_pango(resolve_city(data))
 
         colors = load_theme_colors()
         accent = colors["accent"]
