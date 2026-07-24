@@ -104,16 +104,20 @@ main() {
     WALLPAPER_SRC="$SUMINAMI_DIR/wallpapers/kanagawa.jpg"
     if [ -f "$WALLPAPER_SRC" ]; then
         print_status "Creating dimmed wallpaper..."
+        # mktemp avoids a predictable /tmp path (symlink pre-placement attack
+        # surface). This file is read back by `sudo cp`, so a symlink planted at
+        # a fixed path would be followed as root.
+        TMP_WP=$(mktemp --suffix=.jpg)
         if command -v magick &>/dev/null; then
-            magick "$WALLPAPER_SRC" -fill "rgba(0,0,0,0.7)" -draw "rectangle 0,0 10000,10000" /tmp/suminami-wallpaper-dimmed.jpg
+            magick "$WALLPAPER_SRC" -fill "rgba(0,0,0,0.7)" -draw "rectangle 0,0 10000,10000" "$TMP_WP"
         elif command -v convert &>/dev/null; then
-            convert "$WALLPAPER_SRC" -fill "rgba(0,0,0,0.7)" -draw "rectangle 0,0 10000,10000" /tmp/suminami-wallpaper-dimmed.jpg
+            convert "$WALLPAPER_SRC" -fill "rgba(0,0,0,0.7)" -draw "rectangle 0,0 10000,10000" "$TMP_WP"
         else
             print_warning "ImageMagick not found, copying undimmed wallpaper"
-            cp "$WALLPAPER_SRC" /tmp/suminami-wallpaper-dimmed.jpg
+            cp "$WALLPAPER_SRC" "$TMP_WP"
         fi
-        sudo cp /tmp/suminami-wallpaper-dimmed.jpg "$WALLPAPER_DIR/wallpaper.jpg"
-        rm -f /tmp/suminami-wallpaper-dimmed.jpg
+        sudo cp "$TMP_WP" "$WALLPAPER_DIR/wallpaper.jpg"
+        rm -f "$TMP_WP"
     else
         print_warning "Wallpaper not found at $WALLPAPER_SRC"
     fi
