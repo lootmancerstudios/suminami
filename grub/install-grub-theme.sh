@@ -131,14 +131,21 @@ main() {
         rm -f "$TMP_BG"
         print_success "Background created"
     else
-        # Create a solid color fallback background
+        # Create a solid color fallback background. create_background only fails
+        # when the wallpaper is missing, which says nothing about ImageMagick
+        # being present, so guard both commands here: running a missing
+        # `convert` under `set -e` aborted partway through the install, after
+        # the config backup and theme files had already been written.
         print_status "Creating solid color background..."
         if command -v magick &>/dev/null; then
             magick -size 1920x1080 xc:'#1F1F28' "$TMP_BG"
-        else
+            sudo cp "$TMP_BG" "$THEME_DEST/background.png"
+        elif command -v convert &>/dev/null; then
             convert -size 1920x1080 xc:'#1F1F28' "$TMP_BG"
+            sudo cp "$TMP_BG" "$THEME_DEST/background.png"
+        else
+            print_warning "ImageMagick not found, installing theme without a background image"
         fi
-        sudo cp "$TMP_BG" "$THEME_DEST/background.png"
         rm -f "$TMP_BG"
     fi
 
