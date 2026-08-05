@@ -1,2 +1,9 @@
 # User-specific config (created from monitors.conf.example)
 monitors.conf
+
+# Machine-specific overrides (created from local.conf.example)
+local.conf
+
+# Generated drop-ins (web-app window rules); the placeholder is tracked
+conf.d/*
+!conf.d/00-placeholder.conf

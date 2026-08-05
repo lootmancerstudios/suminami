@@ -1,0 +1,14 @@
+# Machine-specific Hyprland config.
+#
+# Copy to local.conf and put anything that belongs to YOUR machine here --
+# extra keybinds, per-device workarounds, window rules for software only you
+# run. local.conf is git-ignored, so it survives updates and never ships to
+# other SumiNami users.
+#
+# Sourced last, so anything here overrides the defaults.
+#
+# Example -- swallow Ctrl/Shift + middle-click so an evdev-level autoclicker
+# reads the button without the focused window also seeing it:
+#
+#   bind = CTRL, mouse:274, exec, true
+#   bind = SHIFT, mouse:274, exec, true

@@ -1,0 +1,152 @@
+#!/bin/bash
+# Control a SumiNami web-app window.
+#
+#   webapp-ctl <app> show|focus|launch|hide|toggle|quit|status
+#
+# Web apps behave like Vesktop or Nextcloud: closing the window hides it to the
+# tray and leaves the app running, while quitting from the tray menu exits for
+# real. Firefox has no hide-to-tray of its own, so "hidden" means the window is
+# parked on a special workspace. That workspace is never shown as an overlay --
+# revealing means moving the window onto the workspace you are already on, so it
+# tiles in beside your other windows like any normal application.
+
+set -u
+
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+# shellcheck source=lib/webapp.sh
+source "$SCRIPT_DIR/lib/webapp.sh"
+
+LAUNCH_TIMEOUT=30
+
+die() { echo "webapp-ctl: $1" >&2; exit 1; }
+
+usage() {
+    echo "usage: $(basename "$0") <app> {show|focus|launch|hide|toggle|quit|status}" >&2
+    exit 1
+}
+
+[ $# -eq 2 ] || usage
+APP="$1"
+ACTION="$2"
+
+webapp_load "$APP" || die "no usable definition for '$APP' in $WEBAPP_DEFS_DIR"
+
+PROFILE="$(webapp_profile_dir "$APP")"
+STASH="$(webapp_stash_workspace "$WEBAPP_CLASS")"
+MATCH="class:^(${WEBAPP_CLASS})\$"
+LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/suminami-webapp-${APP}.lock"
+
+running() {
+    hyprctl clients -j 2>/dev/null \
+        | jq -e --arg c "$WEBAPP_CLASS" 'any(.[]; .class == $c)' >/dev/null 2>&1
+}
+
+window_workspace_name() {
+    hyprctl clients -j 2>/dev/null \
+        | jq -r --arg c "$WEBAPP_CLASS" \
+            'map(select(.class == $c)) | .[0].workspace.name // empty'
+}
+
+# Workspace IDs, not names: a renamed or named workspace is not a valid bare
+# argument to movetoworkspace, and dispatching it silently does nothing.
+window_workspace_id() {
+    hyprctl clients -j 2>/dev/null \
+        | jq -r --arg c "$WEBAPP_CLASS" \
+            'map(select(.class == $c)) | .[0].workspace.id // empty'
+}
+
+current_workspace_id() {
+    hyprctl monitors -j 2>/dev/null \
+        | jq -r 'map(select(.focused)) | .[0].activeWorkspace.id // empty'
+}
+
+hidden() { [ "$(window_workspace_name)" = "$STASH" ]; }
+
+focused() {
+    [ "$(hyprctl activewindow -j 2>/dev/null | jq -r '.class // empty')" = "$WEBAPP_CLASS" ]
+}
+
+start_firefox() {
+    [ -d "$PROFILE" ] || die "profile missing: $PROFILE (run webapp-install $APP)"
+    command -v firefox >/dev/null 2>&1 || die "firefox is not installed"
+    setsid env MOZ_APP_REMOTINGNAME="$WEBAPP_CLASS" firefox \
+        --profile "$PROFILE" --no-remote --name "$WEBAPP_CLASS" "$WEBAPP_URL" \
+        >/dev/null 2>&1 &
+}
+
+# Firefox takes a while to map its window; without waiting, the move below fires
+# before there is anything to move.
+wait_for_window() {
+    local i
+    for ((i = 0; i < LAUNCH_TIMEOUT; i++)); do
+        running && return 0
+        sleep 1
+    done
+    return 1
+}
+
+# Serialised: a repeated keypress must not start a second Firefox against a
+# profile the first one has already locked. A caller that loses the race waits
+# for the winner's window instead of spawning its own.
+ensure_running() {
+    running && return 0
+    exec 9>"$LOCK_FILE" 2>/dev/null || true
+    if flock -n 9 2>/dev/null; then
+        running || start_firefox
+        wait_for_window
+    else
+        wait_for_window
+    fi
+}
+
+# Bring the window to the workspace you are looking at and focus it. Moving it
+# to you, rather than switching you to it, is what keeps it tiling into the
+# current layout instead of sitting alone on a workspace of its own.
+show() {
+    ensure_running || return 1
+
+    local here
+    here="$(current_workspace_id)"
+    [ -n "$here" ] || return 1
+
+    if [ "$(window_workspace_id)" != "$here" ]; then
+        hyprctl dispatch movetoworkspace "${here},${MATCH}" >/dev/null 2>&1
+    fi
+    hyprctl dispatch focuswindow "$MATCH" >/dev/null 2>&1
+}
+
+# Park it out of sight. The process stays up, so the tray icon and its unread
+# count survive.
+hide() {
+    running || return 0
+    hyprctl dispatch movetoworkspacesilent "${STASH},${MATCH}" >/dev/null 2>&1
+}
+
+case "$ACTION" in
+    show|focus) show ;;
+    hide)       hide ;;
+    launch)
+        # Start it without putting it on screen -- used at login, so the app is
+        # live and counting unread without hijacking the session. A generated
+        # window rule opens it straight into the stash; the hide is a fallback
+        # for when that rule is missing.
+        ensure_running || exit 1
+        hidden || hide
+        ;;
+    toggle)
+        # In front of you already -> tuck away. Otherwise bring it up.
+        if running && ! hidden && focused; then
+            hide
+        else
+            show
+        fi
+        ;;
+    quit)   hyprctl dispatch closewindow "$MATCH" >/dev/null 2>&1 ;;
+    status)
+        if ! running; then echo stopped
+        elif hidden;  then echo hidden
+        else               echo visible
+        fi
+        ;;
+    *) usage ;;
+esac

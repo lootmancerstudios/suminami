@@ -1,0 +1,47 @@
+#!/bin/bash
+# Start tray agents for every installed web app.
+#
+# Called once from env.conf, so adding a web app needs only a definition file
+# and a webapp-install run -- no Hyprland config edit. Definitions that were
+# never installed are skipped, so shipping one costs nothing for a user who
+# does not want it.
+#
+# Output goes to a log rather than /dev/null: this runs unattended at login,
+# and a silently discarded error means a missing tray icon with nothing
+# anywhere to explain it.
+
+set -u
+
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+
+LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/suminami"
+LOG="$LOG_DIR/webapps.log"
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+
+note() { printf '%s webapp-autostart: %s\n' "$(date -Is 2>/dev/null)" "$1" >>"$LOG"; }
+
+# shellcheck source=lib/webapp.sh
+source "$SCRIPT_DIR/lib/webapp.sh" 2>/dev/null || {
+    note "cannot source lib/webapp.sh; no web apps started"
+    exit 0
+}
+
+# The tray agent needs python-gobject. install.sh lists it, but an existing
+# install that only ever ran scripts/update.sh (git pull, no packages) will not
+# have it -- fail loudly in the log instead of leaving a dead tray.
+if ! python3 -c 'import gi' >/dev/null 2>&1; then
+    note "python-gobject missing; web-app tray icons disabled. Install with: sudo pacman -S --needed python-gobject"
+    exit 0
+fi
+
+started=0
+while IFS= read -r app; do
+    [ -n "$app" ] || continue
+    webapp_load "$app" || { note "skipping '$app': unusable definition"; continue; }
+    [ -d "$(webapp_profile_dir "$app")" ] || continue
+    setsid "$SCRIPT_DIR/webapp-tray" --autostart "$app" >>"$LOG" 2>&1 &
+    started=$((started + 1))
+done < <(webapp_list)
+
+[ "$started" -gt 0 ] && note "started $started web-app tray agent(s)"
+exit 0

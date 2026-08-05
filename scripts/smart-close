@@ -1,0 +1,40 @@
+#!/bin/bash
+# Close the focused window -- unless it is a web app, in which case park it out
+# of sight and leave the process running.
+#
+# Bound over killactive. Web-app windows are Firefox instances with no
+# hide-to-tray of their own, so closing one would kill the app and its tray icon
+# outright; those get hidden instead, and are quit from their tray menu.
+#
+# Anything unexpected -- missing library, missing jq, unreadable window, no
+# matching definition, a hide that does not take -- falls through to killactive.
+# A window manager whose close key can break because a helper script is missing
+# is worse than one with no hide-to-tray at all.
+
+set -u
+
+close() {
+    hyprctl dispatch killactive >/dev/null
+    exit 0
+}
+
+command -v jq >/dev/null 2>&1 || close
+
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+# shellcheck source=lib/webapp.sh
+source "$SCRIPT_DIR/lib/webapp.sh" 2>/dev/null || close
+
+window="$(hyprctl activewindow -j 2>/dev/null)" || close
+class="$(printf '%s' "$window" | jq -r '.class // empty')" || close
+# Address, not class: two windows can share a class, and a class selector would
+# hide whichever one Hyprland matched first rather than the one you just closed.
+address="$(printf '%s' "$window" | jq -r '.address // empty')" || close
+[ -n "$class" ] && [ -n "$address" ] || close
+
+webapp_by_class "$class" >/dev/null 2>&1 || close
+
+result="$(hyprctl dispatch movetoworkspacesilent \
+    "$(webapp_stash_workspace "$class"),address:${address}" 2>/dev/null)"
+[ "$result" = "ok" ] || close
+
+exit 0

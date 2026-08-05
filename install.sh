@@ -63,7 +63,7 @@ show_help() {
     echo "  - Install Hyprland and required packages"
     echo "  - Clone/update the suminami repository"
     echo "  - Create symlinks for configs"
-    echo "  - Optionally install: screen locker, clipboard manager, SDDM theme"
+    echo "  - Optionally install: screen locker, clipboard manager, SDDM theme, web apps"
     echo ""
 }
 
@@ -139,6 +139,7 @@ confirm_install() {
     echo "    - Screen locker & idle management"
     echo "    - Clipboard persistence"
     echo "    - SDDM login theme"
+    echo "    - Web apps (WhatsApp as a desktop app with a tray icon)"
     echo "    - TUI enhancements"
     echo ""
     read -p "Proceed with installation? [Y/n] " -n 1 -r
@@ -372,6 +373,7 @@ PACMAN_DEPS=(
     firefox
     jq
     socat
+    python-gobject
     qt6-declarative
     qt6-svg
     imagemagick
@@ -512,6 +514,16 @@ create_symlinks() {
     if [ ! -f "$monitors_conf" ] && [ -f "$monitors_example" ]; then
         cp "$monitors_example" "$monitors_conf"
         print_success "  Created monitors.conf from example"
+    fi
+
+    # Same for local.conf. hyprland.conf sources it unconditionally and
+    # Hyprland treats a source= that resolves to nothing as a config error, so
+    # this file has to exist even when the user has nothing machine-specific.
+    local local_conf="$suminami_dir/config/hypr/local.conf"
+    local local_example="$suminami_dir/config/hypr/local.conf.example"
+    if [ ! -f "$local_conf" ] && [ -f "$local_example" ]; then
+        cp "$local_example" "$local_conf"
+        print_success "  Created local.conf from example"
     fi
 }
 
@@ -860,6 +872,61 @@ install_clipboard_persistence() {
             print_success "Clipboard persistence configured"
         fi
     fi
+}
+
+# Install optional web apps (sites as desktop apps with tray icons)
+install_webapps() {
+    local suminami_dir="$HOME/.config/suminami"
+    local installer="$suminami_dir/scripts/webapp-install"
+
+    [ -x "$installer" ] || return 0
+
+    local available=()
+    mapfile -t available < <("$installer" --list 2>/dev/null)
+    [ ${#available[@]} -gt 0 ] || return 0
+
+    # Idempotent: once a web app has a profile, refresh generated files quietly
+    # instead of asking again on every run. The refresh touches only apps that
+    # are already installed, so a web app added by a later update never
+    # installs itself onto a machine whose owner did not ask for it.
+    local installed=false app
+    for app in "${available[@]}"; do
+        if [ -d "$HOME/.mozilla/firefox/$app" ]; then installed=true; break; fi
+    done
+
+    if [ "$installed" = true ]; then
+        print_status "Refreshing installed web apps..."
+        if "$installer" --installed >/dev/null 2>&1; then
+            print_success "Web apps refreshed"
+        else
+            print_warning "Could not refresh web apps"
+        fi
+        return 0
+    fi
+
+    echo ""
+    echo -e "${BLUE}Web Apps (optional)${NC}"
+    echo "  Installs sites as desktop applications: their own window, launcher"
+    echo "  entry and tray icon with an unread badge. Each gets its own Firefox"
+    echo "  profile, so logins stay separate from your normal browsing."
+    echo "  Each one starts hidden at login and runs a Firefox process."
+    echo "  Remove one later with: rm -rf ~/.mozilla/firefox/<name>"
+    echo "  Available: ${available[*]}"
+    echo ""
+    read -p "Install web apps? [Y/n] " -n 1 -r
+    echo ""
+
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        print_status "Skipping web apps (install later with: $installer --all)"
+        return 0
+    fi
+
+    if ! "$installer" --all; then
+        print_warning "Some web apps could not be installed"
+        return 1
+    fi
+
+    print_success "Web apps installed"
 }
 
 # Install optional TUI enhancements
@@ -1312,6 +1379,9 @@ main() {
 
     # Optional: Install GRUB theme (if detected)
     install_grub_theme
+
+    # Optional: Install web apps (sites as desktop apps with tray icons)
+    install_webapps
 
     # Optional: Install TUI enhancements
     install_tui_enhancements
