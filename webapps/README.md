@@ -59,15 +59,23 @@ number by switching icon names rather than rendering anything at runtime.
 
 ## Behaviour
 
-- **Left-click tray** — show the window, or hide it if it is already in front.
+- **Left-click tray** — jump to the window, or hide it if it is already in front.
+  A window on a normal workspace stays put and you are switched to it. A hidden
+  window returns to the workspace it was hidden from, or comes to your current
+  one if it has no history yet.
 - **Right-click tray** — menu: unread status, Show, Hide to tray, Quit.
 - **Super+Q on the window** — hides to tray rather than closing, since Firefox
   has no hide-to-tray of its own and quitting would take the tray icon with it.
 - **Quit from the menu** — closes the window and removes the tray icon.
 
 Hidden windows are parked on the special workspace `special:<class>-hidden`.
-That workspace is never shown as an overlay; showing the app moves its window
-onto the workspace you are currently on, so it tiles in normally.
+That workspace is never shown as an overlay — showing the app puts its window on
+a normal workspace, where it tiles like anything else.
+
+The workspace a window was hidden from is remembered in `$XDG_RUNTIME_DIR`, so
+it goes back there rather than following you around. That state is runtime-only
+and resets on reboot, at which point a freshly started app comes to whichever
+workspace you show it from.
 
 ## Unread counts
 

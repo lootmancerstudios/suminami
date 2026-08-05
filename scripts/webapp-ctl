@@ -35,6 +35,9 @@ PROFILE="$(webapp_profile_dir "$APP")"
 STASH="$(webapp_stash_workspace "$WEBAPP_CLASS")"
 MATCH="class:^(${WEBAPP_CLASS})\$"
 LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/suminami-webapp-${APP}.lock"
+# Workspace the window was last hidden from. Runtime state, so it resets on
+# reboot rather than restoring a workspace layout the user has moved on from.
+ORIGIN_FILE="${XDG_RUNTIME_DIR:-/tmp}/suminami-webapp-${APP}.origin"
 
 running() {
     hyprctl clients -j 2>/dev/null \
@@ -99,26 +102,52 @@ ensure_running() {
     fi
 }
 
-# Bring the window to the workspace you are looking at and focus it. Moving it
-# to you, rather than switching you to it, is what keeps it tiling into the
-# current layout instead of sitting alone on a workspace of its own.
+# Put the window in front of the user.
+#
+# A window that already lives on a normal workspace is left where it is and the
+# user is taken to it -- dragging it away would undo wherever they chose to put
+# it. Only a window with no home of its own (parked in the stash) is brought to
+# the current workspace, and even then it goes back to the workspace it was
+# hidden from if that is known.
 show() {
     ensure_running || return 1
 
-    local here
-    here="$(current_workspace_id)"
-    [ -n "$here" ] || return 1
+    local ws_name target
+    ws_name="$(window_workspace_name)"
+    [ -n "$ws_name" ] || return 1
 
-    if [ "$(window_workspace_id)" != "$here" ]; then
-        hyprctl dispatch movetoworkspace "${here},${MATCH}" >/dev/null 2>&1
+    if [ "$ws_name" != "$STASH" ]; then
+        # Lives somewhere real: go to it.
+        target="$(window_workspace_id)"
+        [ -n "$target" ] || return 1
+        hyprctl dispatch workspace "$target" >/dev/null 2>&1
+    else
+        # Hidden: restore to where it was hidden from, else to where you are.
+        target="$(cat "$ORIGIN_FILE" 2>/dev/null)"
+        case "$target" in
+            ''|*[!0-9-]*) target="$(current_workspace_id)" ;;
+        esac
+        [ -n "$target" ] || return 1
+        hyprctl dispatch movetoworkspace "${target},${MATCH}" >/dev/null 2>&1
+        hyprctl dispatch workspace "$target" >/dev/null 2>&1
     fi
+
     hyprctl dispatch focuswindow "$MATCH" >/dev/null 2>&1
 }
 
 # Park it out of sight. The process stays up, so the tray icon and its unread
-# count survive.
+# count survive. Remember which workspace it came from so showing it again puts
+# it back rather than dropping it wherever the user happens to be.
 hide() {
     running || return 0
+
+    local ws_name ws_id
+    ws_name="$(window_workspace_name)"
+    if [ -n "$ws_name" ] && [ "$ws_name" != "$STASH" ]; then
+        ws_id="$(window_workspace_id)"
+        [ -n "$ws_id" ] && printf '%s\n' "$ws_id" >"$ORIGIN_FILE" 2>/dev/null
+    fi
+
     hyprctl dispatch movetoworkspacesilent "${STASH},${MATCH}" >/dev/null 2>&1
 }
 

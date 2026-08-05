@@ -99,7 +99,7 @@ Sites that behave like installed applications: their own window, launcher entry 
 
 Each web app runs in its own Firefox profile, so its login stays separate from your normal browsing. The installer prompts for these (default **on**); answering no installs nothing and costs nothing at login.
 
-- **Left-click the tray icon** to show the window, or hide it if it is already in front
+- **Left-click the tray icon** to jump to the window, or hide it if it is already in front. If it lives on another workspace you are taken there; the window is not dragged onto your current one
 - **Right-click** for unread count, Show, Hide to tray, and Quit
 - **Super+Q** on the window hides it to the tray rather than closing it — Firefox has no hide-to-tray of its own, and quitting would take the tray icon with it
 - **Quit** from the tray menu closes it properly and removes the icon
