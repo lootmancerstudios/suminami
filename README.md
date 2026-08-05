@@ -111,10 +111,10 @@ $EDITOR ~/.config/suminami/webapps/myapp.conf
 ~/.config/suminami/scripts/webapp-install myapp
 ```
 
-See [`webapps/README.md`](webapps/README.md) for the field reference. To remove one, delete its Firefox profile:
+See [`webapps/README.md`](webapps/README.md) for the field reference. To remove one:
 
 ```bash
-rm -rf ~/.mozilla/firefox/whatsapp
+~/.config/suminami/scripts/webapp-install --remove whatsapp
 ```
 
 ## Theme System

@@ -881,6 +881,24 @@ install_webapps() {
 
     [ -x "$installer" ] || return 0
 
+    # An earlier version created ~/.mozilla/firefox for its profiles. Firefox
+    # only uses the XDG location while that directory does NOT exist, so
+    # creating it switched Firefox to legacy mode: it stopped seeing the real
+    # profile and opened a blank one, which looks exactly like losing your
+    # bookmarks. Warn rather than move anything -- the profile is the user's
+    # data and the safe fix depends on what is in there.
+    if [ -d "$HOME/.mozilla/firefox" ] && [ -f "$HOME/.config/mozilla/firefox/profiles.ini" ]; then
+        echo ""
+        print_warning "Two Firefox profile locations found:"
+        print_warning "  $HOME/.mozilla/firefox        (legacy)"
+        print_warning "  $HOME/.config/mozilla/firefox (XDG, has profiles.ini)"
+        print_warning "Firefox uses the legacy one whenever it exists, so your real"
+        print_warning "profile may be hidden and Firefox may open a blank one."
+        print_warning "If your bookmarks look missing: quit Firefox, move the legacy"
+        print_warning "directory aside (mv ~/.mozilla ~/.mozilla.bak) and start Firefox."
+        echo ""
+    fi
+
     local available=()
     mapfile -t available < <("$installer" --list 2>/dev/null)
     [ ${#available[@]} -gt 0 ] || return 0
@@ -889,9 +907,13 @@ install_webapps() {
     # instead of asking again on every run. The refresh touches only apps that
     # are already installed, so a web app added by a later update never
     # installs itself onto a machine whose owner did not ask for it.
+    # Ask the shared library where Firefox actually keeps profiles rather than
+    # assuming ~/.mozilla; that path does not exist on an XDG-layout Firefox.
     local installed=false app
+    # shellcheck source=scripts/lib/webapp.sh
+    source "$suminami_dir/scripts/lib/webapp.sh" 2>/dev/null || true
     for app in "${available[@]}"; do
-        if [ -d "$HOME/.mozilla/firefox/$app" ]; then installed=true; break; fi
+        if [ -d "$(webapp_profile_dir "$app" 2>/dev/null)" ]; then installed=true; break; fi
     done
 
     if [ "$installed" = true ]; then
@@ -910,7 +932,7 @@ install_webapps() {
     echo "  entry and tray icon with an unread badge. Each gets its own Firefox"
     echo "  profile, so logins stay separate from your normal browsing."
     echo "  Each one starts hidden at login and runs a Firefox process."
-    echo "  Remove one later with: rm -rf ~/.mozilla/firefox/<name>"
+    echo "  Remove one later with: scripts/webapp-install --remove <name>"
     echo "  Available: ${available[*]}"
     echo ""
     read -p "Install web apps? [Y/n] " -n 1 -r

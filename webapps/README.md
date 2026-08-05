@@ -31,24 +31,22 @@ are hex and patterns are regexes.
 
 ## Removing one
 
-Autostart skips any web app that has no Firefox profile, so deleting the profile
-is the off switch:
-
 ```sh
-rm -rf ~/.mozilla/firefox/<name>
+~/.config/suminami/scripts/webapp-install --remove <name>
 ```
 
-That stops it launching at login and removes its tray icon. The generated icons
-and launcher entry are left behind — a few KB, inert. Delete them too if you
-want it gone completely:
+That deletes the app's Firefox profile, its generated icons and its launcher
+entry, and drops it from the generated window rules. The definition file stays,
+so it can be reinstalled later.
 
-```sh
-rm -f ~/.local/share/applications/suminami-webapp-<name>.desktop
-rm -f ~/.local/share/icons/hicolor/scalable/apps/suminami-<icon>*.svg
-```
+Removing the profile also removes that app's login, so you will scan the QR code
+again if you reinstall it.
 
-Note that deleting the profile also deletes that app's login, so you will scan
-the QR code again if you reinstall it.
+> Do not delete a profile by hand-guessing its path. Firefox keeps profiles in
+> `~/.config/mozilla/firefox` on an XDG layout and `~/.mozilla/firefox` on the
+> legacy one, and **creating the legacy directory when it does not already exist
+> switches Firefox out of XDG mode**, so it stops seeing the real profile and
+> opens a blank one instead. `webapp-install` detects the layout in use.
 
 ## The icon asset
 

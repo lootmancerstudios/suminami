@@ -97,5 +97,17 @@ webapp_by_class() {
 }
 
 # Per-app paths. Kept here so every script agrees on where things live.
-webapp_profile_dir() { printf '%s\n' "$HOME/.mozilla/firefox/$1"; }
+# Directory Firefox keeps its profiles in. Firefox uses ~/.mozilla/firefox when
+# that directory exists and the XDG location otherwise; mirror that, and never
+# create the legacy directory -- doing so switches Firefox out of XDG mode, so
+# it stops seeing the existing profile and the user's bookmarks appear to vanish.
+webapp_profile_root() {
+    if [ -d "$HOME/.mozilla/firefox" ]; then
+        printf '%s\n' "$HOME/.mozilla/firefox"
+    else
+        printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/mozilla/firefox"
+    fi
+}
+
+webapp_profile_dir() { printf '%s\n' "$(webapp_profile_root)/$1"; }
 webapp_stash_workspace() { printf '%s\n' "special:$1-hidden"; }

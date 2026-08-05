@@ -282,6 +282,42 @@ def refresh_caches() -> None:
         )
 
 
+# -- removal --------------------------------------------------------------
+
+def remove(name: str) -> bool:
+    """Delete a web app's profile, icons and launcher.
+
+    The profile holds the login, so removing it means scanning a QR code again
+    on reinstall. Nothing else is destroyed -- definitions stay put, so the app
+    can be reinstalled from the same file.
+    """
+    try:
+        app = webapp.load(name)
+    except webapp.DefinitionError as exc:
+        print(f"webapp-install: {exc}", file=sys.stderr)
+        return False
+
+    print(f"Removing {app.name} ({app.app})")
+    profile = app.profile_dir
+    if profile.is_dir():
+        shutil.rmtree(profile, ignore_errors=True)
+        log(f"profile  removed {profile}")
+    else:
+        log("profile  not installed")
+
+    gone = 0
+    for icon in ICON_DIR.glob(f"{app.icon_name}*.svg"):
+        icon.unlink(missing_ok=True)
+        gone += 1
+    log(f"icons    removed {gone}")
+
+    desktop = DESKTOP_DIR / f"suminami-webapp-{app.app}.desktop"
+    if desktop.exists():
+        desktop.unlink()
+        log(f"launcher removed {desktop.name}")
+    return True
+
+
 # -- entry point ----------------------------------------------------------
 
 def install(name: str) -> bool:
@@ -319,6 +355,8 @@ def main() -> int:
     parser.add_argument("--installed", action="store_true",
                         help="refresh only web apps that are already installed")
     parser.add_argument("--list", action="store_true", help="list definitions and exit")
+    parser.add_argument("--remove", action="store_true",
+                        help="remove the named web apps (profile, icons, launcher)")
     args = parser.parse_args()
 
     if args.list:
@@ -326,12 +364,20 @@ def main() -> int:
             print(name)
         return 0
 
+    if args.remove:
+        if not args.apps:
+            parser.error("name at least one web app to remove")
+        ok = all([remove(name) for name in args.apps])
+        install_window_rules()
+        refresh_caches()
+        return 0 if ok else 1
+
     if args.installed:
         # Refresh path. Deliberately NOT --all: a definition added by a later
         # update must not install itself onto a machine whose owner only ever
         # opted into the apps they already have.
         names = [n for n in webapp.available()
-                 if (Path.home() / ".mozilla" / "firefox" / n).is_dir()]
+                 if (webapp.profile_root() / n).is_dir()]
     elif args.all:
         names = webapp.available()
     else:

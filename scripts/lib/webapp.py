@@ -27,6 +27,22 @@ ASSETS_DIR = ROOT / "assets" / "webapps"
 # collide with an icon shipped by a real package.
 ICON_PREFIX = "suminami-"
 
+
+def profile_root() -> Path:
+    """Directory Firefox keeps its profiles in on this machine.
+
+    Firefox uses ~/.mozilla/firefox when that directory exists, and the XDG
+    location otherwise. This mirrors that rule exactly and MUST never create
+    the legacy directory: bringing ~/.mozilla/firefox into existence silently
+    switches Firefox out of XDG mode, so it stops seeing an existing profile
+    and starts a blank one -- the user's bookmarks appear to vanish.
+    """
+    legacy = Path.home() / ".mozilla" / "firefox"
+    if legacy.is_dir():
+        return legacy
+    base = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config"))
+    return base / "mozilla" / "firefox"
+
 _FIELDS = {
     "name", "class", "url", "icon", "color", "unread_pattern", "app_chrome",
     "key",
@@ -52,7 +68,7 @@ class WebApp:
 
     @property
     def profile_dir(self) -> Path:
-        return Path.home() / ".mozilla" / "firefox" / self.app
+        return profile_root() / self.app
 
     @property
     def stash_workspace(self) -> str:
