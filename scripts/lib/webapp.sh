@@ -23,6 +23,12 @@ webapp_reset() {
     WEBAPP_UNREAD_PATTERN=""
     WEBAPP_APP_CHROME=""
     WEBAPP_KEY=""
+    WEBAPP_USER_AGENT=""
+    WEBAPP_WINDOW_SIZE=""
+    WEBAPP_ZOOM=""
+    WEBAPP_HIDE_SELECTORS=""
+    WEBAPP_NOTIFICATIONS=""
+    WEBAPP_PERMISSIONS=""
 }
 
 # List the names of all defined web apps, one per line.
@@ -74,6 +80,12 @@ webapp_load() {
             unread_pattern) WEBAPP_UNREAD_PATTERN="$value" ;;
             app_chrome)     WEBAPP_APP_CHROME="$value" ;;
             key)            WEBAPP_KEY="$value" ;;
+            user_agent)     WEBAPP_USER_AGENT="$value" ;;
+            window_size)    WEBAPP_WINDOW_SIZE="$value" ;;
+            zoom)           WEBAPP_ZOOM="$value" ;;
+            hide_selectors) WEBAPP_HIDE_SELECTORS="$value" ;;
+            notifications)  WEBAPP_NOTIFICATIONS="$value" ;;
+            permissions)    WEBAPP_PERMISSIONS="$value" ;;
         esac
     done < "$file"
 

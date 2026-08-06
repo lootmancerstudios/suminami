@@ -45,7 +45,7 @@ def profile_root() -> Path:
 
 _FIELDS = {
     "name", "class", "url", "icon", "color", "unread_pattern", "app_chrome",
-    "key",
+    "key", "user_agent", "window_size", "zoom", "hide_selectors", "notifications", "permissions",
 }
 _TRUE = {"true", "yes", "on", "1"}
 
@@ -65,6 +65,12 @@ class WebApp:
     unread_pattern: str | None
     app_chrome: bool
     key: str | None
+    user_agent: str | None
+    window_size: str | None
+    zoom: int | None
+    hide_selectors: str | None
+    notifications: str | None
+    permissions: str | None
 
     @property
     def profile_dir(self) -> Path:
@@ -117,6 +123,13 @@ def _parse(path: Path) -> dict[str, str]:
     return values
 
 
+def _int_or_none(raw: str | None) -> int | None:
+    try:
+        return int(raw) if raw else None
+    except ValueError:
+        return None
+
+
 def load(app: str) -> WebApp:
     path = DEFS_DIR / f"{app}.conf"
     if not path.is_file():
@@ -137,6 +150,12 @@ def load(app: str) -> WebApp:
         unread_pattern=values.get("unread_pattern") or None,
         app_chrome=values.get("app_chrome", "").lower() in _TRUE,
         key=values.get("key") or None,
+        user_agent=values.get("user_agent") or None,
+        window_size=values.get("window_size") or None,
+        zoom=_int_or_none(values.get("zoom")),
+        hide_selectors=values.get("hide_selectors") or None,
+        notifications=(values.get("notifications") or "").lower() or None,
+        permissions=values.get("permissions") or None,
     )
 
 

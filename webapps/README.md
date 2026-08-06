@@ -25,9 +25,34 @@ the tray agent are all driven from these definitions.
 | `unread_pattern` | no | Regex matched against the window title; capture group 1 is the unread count. Omit for apps with no unread state. |
 | `app_chrome` | no | `true` hides the tab strip and navigation toolbar so the window reads as an app. |
 | `key` | no | Hyprland bind that jumps to this app, without the dispatcher — e.g. `SUPER SHIFT, W`. Generated only when the app is installed, so declining leaves no dead keybind. |
+| `user_agent` | no | User agent to present. For sites that gate on a browser allow-list rather than on anything they actually need. Profile-wide, which is safe because the profile only visits its own site. |
+| `zoom` | no | Default page zoom, as a percentage. Some sites hide their desktop interface in a narrow window and offer only an app download; zooming out widens the CSS viewport enough to get the real interface. |
+| `permissions` | no | Comma-separated `name:decision` pairs — `camera`, `microphone`, `notifications`, `geolocation`, `screenshare`, `xr`, each `allow`, `deny` or `ask`. See the warning below. |
+| `window_size` | no | `WIDTH HEIGHT`. Floats the window at a fixed size, for sites that need more width than the tiling layout gives them. Note this excludes the window from the stash rule, which matches tiled windows only. |
+| `hide_selectors` | no | Comma-separated CSS selectors hidden via the profile's `userContent.css`. Sites with generated class names change them on any rebuild, so treat these as disposable. |
 
 Whole-line `#` comments only — values legitimately contain `#`, since colours
 are hex and patterns are regexes.
+
+## Permissions and `app_chrome`
+
+`app_chrome = true` hides the navigation toolbar, and **Firefox anchors permission
+prompts to that toolbar**. A prompt therefore has nowhere to draw: the page dims
+waiting for an answer that can never be given, and the window is stuck until the
+app is restarted.
+
+So with `app_chrome = true`, every promptable permission is decided in advance.
+Anything `permissions` does not name is **denied**, because an unanswerable
+prompt is worse than a denial. Name what the app genuinely needs:
+
+```conf
+permissions = notifications:allow, camera:allow, microphone:allow, geolocation:deny
+```
+
+The same reasoning applies to dialogs. Firefox opens a file picker as a window
+with the *same class* as the app, so the generated stash rule matches tiled
+windows only — otherwise the picker is hidden on the stash workspace and the app
+waits forever on something invisible.
 
 ## Removing one
 
