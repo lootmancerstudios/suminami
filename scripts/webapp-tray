@@ -45,7 +45,7 @@ POLL_SECONDS = 3
 # tearing down a live tray icon.
 MISSING_POLLS_TO_EXIT = 2
 SNI_PATH = "/StatusNotifierItem"
-MENU_PATH = "/MenuBar"
+MENU_PATH = "/com/canonical/dbusmenu"
 
 SNI_XML = """
 <node>
@@ -122,6 +122,15 @@ MENU_XML = """
       <arg name="id" type="i" direction="in"/>
       <arg name="needUpdate" type="b" direction="out"/>
     </method>
+    <method name="EventGroup">
+      <arg name="events" type="a(isvu)" direction="in"/>
+      <arg name="idErrors" type="ai" direction="out"/>
+    </method>
+    <method name="AboutToShowGroup">
+      <arg name="ids" type="ai" direction="in"/>
+      <arg name="updatesNeeded" type="ai" direction="out"/>
+      <arg name="idErrors" type="ai" direction="out"/>
+    </method>
     <signal name="LayoutUpdated">
       <arg name="revision" type="u"/>
       <arg name="parent" type="i"/>
@@ -154,6 +163,10 @@ class Tray:
         # Guards startup: the agent must not exit before the window it just
         # launched has had a chance to appear.
         self.seen_window = False
+        # Set once the user picks Quit. An explicit quit is not a crash, so it
+        # skips the consecutive-poll guard and tears the icon down as soon as
+        # the window is confirmed gone.
+        self.quitting = False
 
         sni = Gio.DBusNodeInfo.new_for_xml(SNI_XML).interfaces[0]
         menu = Gio.DBusNodeInfo.new_for_xml(MENU_XML).interfaces[0]
@@ -287,9 +300,21 @@ class Tray:
     @staticmethod
     def item_props(label: str, enabled: bool):
         return {
+            # "type" is not optional in practice: dbusmenu clients use it to
+            # decide an entry is a clickable standard item rather than a
+            # separator or an unknown kind they should ignore.
+            "type": GLib.Variant("s", "standard"),
             "label": GLib.Variant("s", label),
             "enabled": GLib.Variant("b", enabled),
             "visible": GLib.Variant("b", True),
+        }
+
+    @staticmethod
+    def root_props():
+        return {
+            "children-display": GLib.Variant("s", "submenu"),
+            "visible": GLib.Variant("b", True),
+            "enabled": GLib.Variant("b", True),
         }
 
     def on_menu_property(self, _conn, _sender, _path, _iface, prop):
@@ -308,15 +333,18 @@ class Tray:
             ]
             # Raw tuple, not a GLib.Variant: only the "av" children are boxed,
             # and pre-boxing the root makes PyGObject try to rebuild it.
-            root = (0, {"children-display": GLib.Variant("s", "submenu")}, children)
+            root = (0, self.root_props(), children)
             invocation.return_value(
                 GLib.Variant("(u(ia{sv}av))", (self.menu_revision, root)))
 
         elif method == "GetGroupProperties":
             wanted = set(params[0])
-            out = [(i, self.item_props(label, enabled))
-                   for i, label, enabled in self.menu_items()
-                   if not wanted or i in wanted]
+            out = []
+            if not wanted or 0 in wanted:
+                out.append((0, self.root_props()))
+            out += [(i, self.item_props(label, enabled))
+                    for i, label, enabled in self.menu_items()
+                    if not wanted or i in wanted]
             invocation.return_value(GLib.Variant("(a(ia{sv}))", (out,)))
 
         elif method == "GetProperty":
@@ -328,16 +356,21 @@ class Tray:
             invocation.return_value(
                 GLib.Variant("(v)", (props.get(name, GLib.Variant("s", "")),)))
 
+        elif method == "EventGroup":
+            # dbusmenu v3 clients batch activations here rather than calling
+            # Event once per item. Declaring Version 3 without implementing it
+            # means D-Bus rejects every click as UnknownMethod, before any of
+            # our code runs -- the menu opens and simply does nothing.
+            for event in params[0]:
+                self._handle_event(event[0], event[1])
+            invocation.return_value(GLib.Variant("(ai)", ([],)))
+
+        elif method == "AboutToShowGroup":
+            invocation.return_value(GLib.Variant("(aiai)", ([], [])))
+
         elif method == "Event":
             item_id, event_id = params[0], params[1]
-            if event_id == "clicked":
-                if item_id == ITEM_SHOW:
-                    self.ctl("show")
-                elif item_id == ITEM_HIDE:
-                    self.ctl("hide")
-                elif item_id == ITEM_QUIT:
-                    # Close the window; the poll below then tears the icon down.
-                    self.ctl("quit")
+            self._handle_event(item_id, event_id)
             invocation.return_value(None)
 
         elif method == "AboutToShow":
@@ -354,6 +387,34 @@ class Tray:
                                   GLib.Variant("(ui)", (self.menu_revision, 0)))
         except GLib.Error:
             pass
+
+    def _handle_event(self, item_id: int, event_id: str) -> None:
+        if event_id != "clicked":
+            return
+        if item_id == ITEM_SHOW:
+            self.ctl("show")
+        elif item_id == ITEM_HIDE:
+            self.ctl("hide")
+        elif item_id == ITEM_QUIT:
+            # Close the window, then confirm quickly rather than waiting for
+            # the next scheduled poll: leaving a dead icon in the tray for
+            # several seconds reads as the quit having failed.
+            self.quitting = True
+            self.quit_checks = 0
+            self.ctl("quit")
+            GLib.timeout_add(700, self._confirm_quit)
+
+    def _confirm_quit(self) -> bool:
+        """Poll rapidly just after an explicit quit, then give up gracefully."""
+        self.quit_checks += 1
+        ok, title = self.query_window()
+        if ok and title is None:
+            self.loop.quit()
+            return False
+        if self.quit_checks >= 12:  # ~8s: the window refused to close
+            self.quitting = False
+            return False
+        return True
 
     # -- polling ----------------------------------------------------------
 
@@ -377,7 +438,8 @@ class Tray:
 
         if title is None:
             self.missing_polls += 1
-            if self.seen_window and self.missing_polls >= MISSING_POLLS_TO_EXIT:
+            needed = 1 if self.quitting else MISSING_POLLS_TO_EXIT
+            if self.seen_window and self.missing_polls >= needed:
                 # The app is gone -- take the tray icon with it.
                 self.loop.quit()
                 return False
