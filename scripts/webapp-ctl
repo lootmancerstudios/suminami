@@ -72,7 +72,33 @@ focused() {
 start_firefox() {
     [ -d "$PROFILE" ] || die "profile missing: $PROFILE (run webapp-install $APP)"
     command -v firefox >/dev/null 2>&1 || die "firefox is not installed"
-    setsid env MOZ_APP_REMOTINGNAME="$WEBAPP_CLASS" firefox \
+
+    # A memory ceiling, where one is asked for, is applied by starting the app
+    # in a transient systemd scope.
+    #
+    # Firefox keeps a chat app's whole session live in its content process and
+    # has no reason to hand any of it back while the window merely sits on the
+    # stash workspace. MemoryHigh makes the kernel reclaim the cold part of it
+    # instead, which against a zram swap costs a fraction of what it frees. It
+    # throttles rather than kills, so a ceiling set too low makes an app slow,
+    # never absent.
+    #
+    # An app with no memory_high starts exactly as it always did, so this is
+    # invisible to a definition that does not ask for it.
+    local -a scope=()
+    if [ -n "$WEBAPP_MEMORY_HIGH" ]; then
+        if command -v systemd-run >/dev/null 2>&1; then
+            # --collect so a scope left behind by a crash cannot block the next
+            # launch with "unit already exists".
+            scope=(systemd-run --user --scope --collect --quiet
+                   --unit "suminami-webapp-${APP}"
+                   -p "MemoryHigh=${WEBAPP_MEMORY_HIGH}")
+        else
+            echo "webapp-ctl: systemd-run not found; starting $APP without its memory ceiling" >&2
+        fi
+    fi
+
+    setsid "${scope[@]}" env MOZ_APP_REMOTINGNAME="$WEBAPP_CLASS" firefox \
         --profile "$PROFILE" --no-remote --name "$WEBAPP_CLASS" "$WEBAPP_URL" \
         >/dev/null 2>&1 &
 }

@@ -30,6 +30,7 @@ the tray agent are all driven from these definitions.
 | `permissions` | no | Comma-separated `name:decision` pairs — `camera`, `microphone`, `notifications`, `geolocation`, `screenshare`, `xr`, each `allow`, `deny` or `ask`. See the warning below. |
 | `window_size` | no | `WIDTH HEIGHT`. Floats the window at a fixed size, for sites that need more width than the tiling layout gives them. Note this excludes the window from the stash rule, which matches tiled windows only. |
 | `hide_selectors` | no | Comma-separated CSS selectors hidden via the profile's `userContent.css`. Sites with generated class names change them on any rebuild, so treat these as disposable. |
+| `memory_high` | no | Soft memory ceiling for the app, in `systemd` units — e.g. `1200M`. Firefox keeps a chat app's whole session live and does not release it while the window is stashed; this makes the kernel reclaim the cold part instead, which against a zram swap costs far less than it frees. It throttles rather than kills, so a ceiling set too low makes the app slow, never absent. Omit for no limit. |
 
 Whole-line `#` comments only — values legitimately contain `#`, since colours
 are hex and patterns are regexes.

@@ -46,6 +46,7 @@ def profile_root() -> Path:
 _FIELDS = {
     "name", "class", "url", "icon", "color", "unread_pattern", "app_chrome",
     "key", "user_agent", "window_size", "zoom", "hide_selectors", "notifications", "permissions",
+    "memory_high",
 }
 _TRUE = {"true", "yes", "on", "1"}
 
@@ -71,6 +72,7 @@ class WebApp:
     hide_selectors: str | None
     notifications: str | None
     permissions: str | None
+    memory_high: str | None
 
     @property
     def profile_dir(self) -> Path:
@@ -156,6 +158,7 @@ def load(app: str) -> WebApp:
         hide_selectors=values.get("hide_selectors") or None,
         notifications=(values.get("notifications") or "").lower() or None,
         permissions=values.get("permissions") or None,
+        memory_high=values.get("memory_high") or None,
     )
 
 

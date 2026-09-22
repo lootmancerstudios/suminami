@@ -29,6 +29,7 @@ webapp_reset() {
     WEBAPP_HIDE_SELECTORS=""
     WEBAPP_NOTIFICATIONS=""
     WEBAPP_PERMISSIONS=""
+    WEBAPP_MEMORY_HIGH=""
 }
 
 # List the names of all defined web apps, one per line.
@@ -86,6 +87,7 @@ webapp_load() {
             hide_selectors) WEBAPP_HIDE_SELECTORS="$value" ;;
             notifications)  WEBAPP_NOTIFICATIONS="$value" ;;
             permissions)    WEBAPP_PERMISSIONS="$value" ;;
+            memory_high)    WEBAPP_MEMORY_HIGH="$value" ;;
         esac
     done < "$file"
 
