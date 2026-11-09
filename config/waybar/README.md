@@ -62,7 +62,18 @@ chmod +x ~/.config/waybar/scripts/*
 
 ### Hyprland Setup
 
-Add to your Hyprland config (`~/.config/hypr/hyprland.conf`):
+Add to your Hyprland config.
+
+Hyprland 0.55 and newer (`~/.config/hypr/hyprland.lua`):
+
+```lua
+hl.on("hyprland.start", function()
+    hl.exec_cmd("~/.config/waybar/scripts/generate-style && waybar")
+end)
+```
+
+Hyprland 0.56 and older, if you are still on a `.conf`
+(`~/.config/hypr/hyprland.conf`):
 
 ```ini
 exec-once = ~/.config/waybar/scripts/generate-style && waybar

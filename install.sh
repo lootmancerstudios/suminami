@@ -201,51 +201,44 @@ configure_gpu() {
 # Writes to user-local directory (not inside suminami repo) to avoid git conflicts
 create_nvidia_config() {
     local nvidia_dir="$HOME/.config/hypr-local"
-    local nvidia_conf="$nvidia_dir/nvidia.conf"
-    local hyprland_conf="$HOME/.config/hypr/hyprland.conf"
+    local nvidia_conf="$nvidia_dir/nvidia.lua"
 
     print_status "Creating NVIDIA configuration..."
 
     # Create user-local hypr config directory (outside suminami repo)
     mkdir -p "$nvidia_dir"
 
-    # Create nvidia.conf
+    # Create nvidia.lua. hyprland.lua requires this path when it exists, so
+    # nothing has to be written into a tracked file -- an edit there would show
+    # up as a local change and have to be stashed on every update.
     cat > "$nvidia_conf" << 'EOF'
-# SumiNami NVIDIA Configuration
-# See: https://wiki.hypr.land/Nvidia/
+-- SumiNami NVIDIA Configuration
+-- See: https://wiki.hypr.land/nvidia/
 
-# Hardware acceleration
-env = LIBVA_DRIVER_NAME,nvidia
+-- Hardware acceleration
+hl.env("LIBVA_DRIVER_NAME", "nvidia")
 
-# Required for XWayland apps
-env = __GLX_VENDOR_LIBRARY_NAME,nvidia
+-- Required for XWayland apps
+hl.env("__GLX_VENDOR_LIBRARY_NAME", "nvidia")
 
-# Enable VRR/G-Sync (if supported)
-env = __GL_VRR_ALLOWED,1
+-- Enable VRR/G-Sync (if supported)
+hl.env("__GL_VRR_ALLOWED", "1")
 
-# Use software cursor (fixes invisible/glitchy cursor)
-cursor:no_hardware_cursors = true
+-- Use software cursor (fixes invisible/glitchy cursor)
+hl.config({
+    cursor = {
+        no_hardware_cursors = true,
+    },
+})
 EOF
 
     print_success "Created $nvidia_conf"
 
-    # Add source line to hyprland.conf if not already present
-    if [ -f "$hyprland_conf" ]; then
-        if ! grep -q "source.*nvidia.conf" "$hyprland_conf"; then
-            # Find the line with monitors.conf and add nvidia.conf after it
-            if grep -q "source.*monitors.conf" "$hyprland_conf"; then
-                sed -i '/source.*monitors.conf/a source = ~/.config/hypr-local/nvidia.conf' "$hyprland_conf"
-                print_success "Added nvidia.conf to hyprland.conf"
-            else
-                # Fallback: append to end of file
-                echo "" >> "$hyprland_conf"
-                echo "# NVIDIA configuration (user-local)" >> "$hyprland_conf"
-                echo "source = ~/.config/hypr-local/nvidia.conf" >> "$hyprland_conf"
-                print_success "Appended nvidia.conf to hyprland.conf"
-            fi
-        else
-            print_status "nvidia.conf already sourced in hyprland.conf"
-        fi
+    # Drop-in written by an older installer, when the config tree was hyprlang.
+    # Its syntax is not valid Lua, and hyprland.lua does not read it.
+    if [ -f "$nvidia_dir/nvidia.conf" ]; then
+        rm -f "$nvidia_dir/nvidia.conf"
+        print_status "Removed the superseded nvidia.conf"
     fi
 
     print_success "NVIDIA configuration applied"
@@ -508,23 +501,87 @@ create_symlinks() {
         fi
     done
 
-    # Create monitors.conf from example if it doesn't exist
-    local monitors_conf="$suminami_dir/config/hypr/monitors.conf"
-    local monitors_example="$suminami_dir/config/hypr/monitors.conf.example"
+    # Create monitors.lua from example if it doesn't exist, as the obvious place
+    # to describe your displays. hyprland.lua loads a committed auto-detect
+    # default first, so a missing monitors.lua is not an error either way.
+    local monitors_conf="$suminami_dir/config/hypr/monitors.lua"
+    local monitors_example="$suminami_dir/config/hypr/monitors.lua.example"
     if [ ! -f "$monitors_conf" ] && [ -f "$monitors_example" ]; then
         cp "$monitors_example" "$monitors_conf"
-        print_success "  Created monitors.conf from example"
+        print_success "  Created monitors.lua from example"
     fi
 
-    # Same for local.conf. hyprland.conf sources it unconditionally and
-    # Hyprland treats a source= that resolves to nothing as a config error, so
-    # this file has to exist even when the user has nothing machine-specific.
-    local local_conf="$suminami_dir/config/hypr/local.conf"
-    local local_example="$suminami_dir/config/hypr/local.conf.example"
-    if [ ! -f "$local_conf" ] && [ -f "$local_example" ]; then
-        cp "$local_example" "$local_conf"
-        print_success "  Created local.conf from example"
+    # local.lua is left to the user: hyprland.lua requires it only when present,
+    # so an empty one would be clutter rather than a requirement. See
+    # local.lua.example for what can go in it.
+
+    # Configs from before the move to Lua. Hyprland 0.57 does not read them, and
+    # leaving them in place makes it look as though the rice is still installed.
+    local stale
+    for stale in hyprland env input visuals layout keybinds rules; do
+        rm -f "$suminami_dir/config/hypr/$stale.conf"
+    done
+    rm -f "$suminami_dir/config/hypr/conf.d/00-placeholder.conf" \
+          "$suminami_dir/config/hypr/conf.d/50-webapps.conf" \
+          "$suminami_dir/config/hypr/monitors.conf" \
+          "$suminami_dir/config/hypr/local.conf"
+}
+
+# Hyprland has to be new enough to read a Lua config. Checked after packages are
+# installed, since on a fresh machine there is nothing to read a version from
+# before that.
+check_hyprland_version() {
+    local version min="0.55.0"
+
+    version="$(hyprctl version -j 2>/dev/null \
+        | sed -n 's/.*"tag"[[:space:]]*:[[:space:]]*"v\{0,1\}\([0-9][0-9.]*\).*/\1/p' \
+        | head -1)"
+    [ -z "$version" ] && version="$(pacman -Q hyprland 2>/dev/null | awk '{print $2}' | cut -d- -f1)"
+
+    if [ -z "$version" ]; then
+        print_warning "Could not determine the installed Hyprland version"
+        return 0
     fi
+
+    if [ "$(printf '%s\n%s\n' "$min" "$version" | sort -V | head -1)" = "$min" ]; then
+        print_success "Hyprland $version supports the Lua config"
+        return 0
+    fi
+
+    print_warning "Hyprland $version is older than $min"
+    echo "  SumiNami's Hyprland config is Lua, which Hyprland reads from $min on."
+    echo "  On $version the compositor will write its own default config instead,"
+    echo "  and start without any of the rice -- with no error to explain why."
+    echo "  Update Hyprland, then re-run this installer."
+    echo ""
+}
+
+# Add a command to the session autostart.
+#
+# Optional extras go into a conf.d drop-in rather than into env.lua: env.lua is
+# tracked, so an edit there would show up as a local change to be stashed on
+# every update, and it ends in a return statement that nothing can be appended
+# after. conf.d is git-ignored apart from its placeholder, so a drop-in survives
+# updates untouched, and hl.on() can be called from anywhere -- load order does
+# not matter for an autostart.
+hypr_autostart_add() {
+    local cmd="$1"
+    local dropin="$HOME/.config/hypr/conf.d/10-autostart-extras.lua"
+
+    mkdir -p "$(dirname "$dropin")" 2>/dev/null || return 1
+
+    if [ ! -f "$dropin" ]; then
+        cat > "$dropin" << 'EOF'
+-- Optional autostarts added by install.sh. Git-ignored, so updates leave it
+-- alone; delete a block to stop something starting with your session.
+EOF
+    fi
+
+    # Already there: adding it again would start the program twice.
+    grep -qF -- "$cmd" "$dropin" && return 0
+
+    printf '\nhl.on("hyprland.start", function()\n    hl.exec_cmd("%s")\nend)\n' \
+        "$cmd" >> "$dropin"
 }
 
 # Install GTK themes (minimal set)
@@ -808,13 +865,12 @@ install_screen_locker() {
         fi
     fi
 
-    # Add hypridle to autostart only if it is actually available — appending the
-    # exec-once for a missing binary would just produce a dead autostart line.
-    local env_conf="$HOME/.config/hypr/env.conf"
-    if [ "$has_idle" = true ] && command -v hypridle &>/dev/null \
-        && [ -f "$env_conf" ] && ! grep -q "^exec-once = hypridle" "$env_conf"; then
-        printf "\nexec-once = hypridle\n" >> "$env_conf"
-        print_success "hypridle added to Hyprland autostart"
+    # Add hypridle to autostart only if it is actually available — an autostart
+    # for a missing binary would just be a dead entry.
+    if [ "$has_idle" = true ] && command -v hypridle &>/dev/null; then
+        if hypr_autostart_add "hypridle"; then
+            print_success "hypridle added to Hyprland autostart"
+        fi
     fi
 }
 
@@ -861,16 +917,10 @@ install_clipboard_persistence() {
     fi
     print_success "wl-clip-persist installed"
 
-    # Add to Hyprland autostart if not already there. Use printf with a leading
-    # newline (not echo) so the line can't get concatenated onto a previous line
-    # of an env.conf that lacks a trailing newline — a malformed exec-once line.
-    local env_conf="$HOME/.config/hypr/env.conf"
-    if [ -f "$env_conf" ]; then
-        if ! grep -q "wl-clip-persist" "$env_conf"; then
-            print_status "Adding wl-clip-persist to autostart..."
-            printf "\nexec-once = wl-clip-persist --clipboard both\n" >> "$env_conf"
-            print_success "Clipboard persistence configured"
-        fi
+    # Add to Hyprland autostart if not already there.
+    print_status "Adding wl-clip-persist to autostart..."
+    if hypr_autostart_add "wl-clip-persist --clipboard both"; then
+        print_success "Clipboard persistence configured"
     fi
 }
 
@@ -1356,6 +1406,8 @@ main() {
     confirm_install
 
     install_packages
+
+    check_hyprland_version
 
     # Clone/update suminami BEFORE backup - if clone fails, user keeps their configs
     setup_suminami

@@ -1,0 +1,19 @@
+-- Monitor configuration.
+-- See https://wiki.hypr.land/configuring/core/monitors/
+--
+-- Copy this file to monitors.lua and edit it. monitors.lua is git-ignored, so
+-- your local setup is never overwritten by an update.
+--
+-- Examples:
+--   hl.monitor({ output = "HDMI-A-1", mode = "1920x1080@60", position = "0x0",    scale = 1 })
+--   hl.monitor({ output = "DP-1",    mode = "2560x1440@144", position = "1920x0", scale = 1 })
+--   hl.monitor({ output = "eDP-1",   mode = "1920x1080@60",  position = "0x0",    scale = 1 })
+--
+-- To find your monitor names: hyprctl monitors
+
+hl.monitor({
+    output   = "",
+    mode     = "preferred",
+    position = "auto",
+    scale    = "auto",
+})

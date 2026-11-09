@@ -34,6 +34,8 @@ webapp_load "$APP" || die "no usable definition for '$APP' in $WEBAPP_DEFS_DIR"
 PROFILE="$(webapp_profile_dir "$APP")"
 STASH="$(webapp_stash_workspace "$WEBAPP_CLASS")"
 MATCH="class:^(${WEBAPP_CLASS})\$"
+# The same selector as a Lua string literal, for the dispatch calls below.
+LUA_MATCH="$(lua_quote "$MATCH")"
 LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/suminami-webapp-${APP}.lock"
 # Workspace the window was last hidden from. Runtime state, so it resets on
 # reboot rather than restoring a workspace layout the user has moved on from.
@@ -146,7 +148,8 @@ show() {
         # Lives somewhere real: go to it.
         target="$(window_workspace_id)"
         [ -n "$target" ] || return 1
-        hyprctl dispatch workspace "$target" >/dev/null 2>&1
+        hypr_dispatch "$(printf 'hl.dsp.focus({ workspace = %s })' \
+            "$(lua_quote "$target")")" >/dev/null
     else
         # Hidden: restore to where it was hidden from, else to where you are.
         target="$(cat "$ORIGIN_FILE" 2>/dev/null)"
@@ -154,11 +157,13 @@ show() {
             ''|*[!0-9-]*) target="$(current_workspace_id)" ;;
         esac
         [ -n "$target" ] || return 1
-        hyprctl dispatch movetoworkspace "${target},${MATCH}" >/dev/null 2>&1
-        hyprctl dispatch workspace "$target" >/dev/null 2>&1
+        hypr_dispatch "$(printf 'hl.dsp.window.move({ workspace = %s, window = %s })' \
+            "$(lua_quote "$target")" "$LUA_MATCH")" >/dev/null
+        hypr_dispatch "$(printf 'hl.dsp.focus({ workspace = %s })' \
+            "$(lua_quote "$target")")" >/dev/null
     fi
 
-    hyprctl dispatch focuswindow "$MATCH" >/dev/null 2>&1
+    hypr_dispatch "$(printf 'hl.dsp.focus({ window = %s })' "$LUA_MATCH")" >/dev/null
 }
 
 # Park it out of sight. The process stays up, so the tray icon and its unread
@@ -174,7 +179,9 @@ hide() {
         [ -n "$ws_id" ] && printf '%s\n' "$ws_id" >"$ORIGIN_FILE" 2>/dev/null
     fi
 
-    hyprctl dispatch movetoworkspacesilent "${STASH},${MATCH}" >/dev/null 2>&1
+    hypr_dispatch "$(printf \
+        'hl.dsp.window.move({ workspace = %s, window = %s, follow = false })' \
+        "$(lua_quote "$STASH")" "$LUA_MATCH")" >/dev/null
 }
 
 case "$ACTION" in
@@ -196,7 +203,8 @@ case "$ACTION" in
             show
         fi
         ;;
-    quit)   hyprctl dispatch closewindow "$MATCH" >/dev/null 2>&1 ;;
+    quit)   hypr_dispatch "$(printf 'hl.dsp.window.close({ window = %s })' \
+                "$LUA_MATCH")" >/dev/null ;;
     status)
         if ! running; then echo stopped
         elif hidden;  then echo hidden

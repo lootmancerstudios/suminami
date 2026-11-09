@@ -26,6 +26,6 @@ case "$CHOICE" in
         systemctl poweroff
         ;;
     *"Log Out"*)
-        hyprctl dispatch exit
+        hyprctl dispatch 'hl.dsp.exit()'
         ;;
 esac

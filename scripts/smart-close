@@ -13,8 +13,11 @@
 
 set -u
 
+# Deliberately does not use the hypr_dispatch helper from lib/webapp.sh: this is
+# the fallback for a failed source of that very library, so it has to stand on
+# its own. "hyprctl dispatch" takes a Lua expression from Hyprland 0.55 on.
 close() {
-    hyprctl dispatch killactive >/dev/null
+    hyprctl dispatch 'hl.dsp.window.close()' >/dev/null
     exit 0
 }
 
@@ -33,8 +36,10 @@ address="$(printf '%s' "$window" | jq -r '.address // empty')" || close
 
 webapp_by_class "$class" >/dev/null 2>&1 || close
 
-result="$(hyprctl dispatch movetoworkspacesilent \
-    "$(webapp_stash_workspace "$class"),address:${address}" 2>/dev/null)"
-[ "$result" = "ok" ] || close
+result="$(hypr_dispatch "$(printf \
+    'hl.dsp.window.move({ workspace = %s, window = %s, follow = false })' \
+    "$(lua_quote "$(webapp_stash_workspace "$class")")" \
+    "$(lua_quote "address:${address}")")")"
+case "$result" in ok*) ;; *) close ;; esac
 
 exit 0

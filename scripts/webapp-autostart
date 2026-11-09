@@ -1,7 +1,7 @@
 #!/bin/bash
 # Start tray agents for every installed web app.
 #
-# Called once from env.conf, so adding a web app needs only a definition file
+# Called once from env.lua, so adding a web app needs only a definition file
 # and a webapp-install run -- no Hyprland config edit. Definitions that were
 # never installed are skipped, so shipping one costs nothing for a user who
 # does not want it.

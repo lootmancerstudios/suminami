@@ -125,3 +125,17 @@ webapp_profile_root() {
 
 webapp_profile_dir() { printf '%s\n' "$(webapp_profile_root)/$1"; }
 webapp_stash_workspace() { printf '%s\n' "special:$1-hidden"; }
+
+# Hyprland's config language is Lua from 0.55 onwards, and "hyprctl dispatch" is
+# a thin wrapper around hl.dispatch(...): the pre-0.57 dispatcher names are not
+# valid Lua and are rejected. Dispatches are funnelled through here so there is
+# one place to adjust if the API moves again.
+#
+# lua_quote renders a shell value as a Lua string literal. Window classes come
+# from user-authored definitions in webapps/, so a stray quote or backslash must
+# not be able to end the literal early.
+lua_quote() {
+    printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
+}
+
+hypr_dispatch() { hyprctl dispatch "$1" 2>/dev/null; }

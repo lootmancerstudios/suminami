@@ -1,0 +1,5 @@
+-- Required by hyprland.lua via require("./conf.d/*.lua").
+--
+-- This file exists so the glob always matches: Hyprland treats a require() whose
+-- wildcard resolves to nothing as a config error. Generated fragments (web-app
+-- window rules) and any drop-ins you add land beside it and are git-ignored.

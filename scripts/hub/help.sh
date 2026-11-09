@@ -2,42 +2,45 @@
 # Suminami Help Menu
 
 show_keybinds() {
-    KEYBINDS_FILE="$HOME/.config/hypr/keybinds.conf"
+    # Binds are read back from Hyprland rather than parsed out of the config.
+    # The config is Lua, where a bind can be built in a loop or from a variable,
+    # so the file is no longer something to read with sed -- and asking the
+    # compositor also picks up the generated web-app binds, which live in a
+    # drop-in and were never listed here before.
+    local binds
+    binds="$(hyprctl binds -j 2>/dev/null)"
 
-    if [ ! -f "$KEYBINDS_FILE" ]; then
-        notify-send "Keybinds" "keybinds.conf not found"
+    if ! command -v jq > /dev/null 2>&1; then
+        notify-send "Keybinds" "jq is needed to list keybinds"
         return
     fi
 
-    # Parse keybinds.conf and format for display
-    # Format: bind = MODS, KEY, action, args -> "MODS + KEY  →  action args"
-    keybinds=$(grep -E "^bind[elm]*\s*=" "$KEYBINDS_FILE" | while read -r line; do
-        # Extract parts: bind = MODS, KEY, action, args
-        # Remove 'bind = ' or 'bindel = ' etc
-        clean=$(echo "$line" | sed 's/^bind[elm]*\s*=\s*//')
+    if [ -z "$binds" ]; then
+        notify-send "Keybinds" "Could not read binds from Hyprland"
+        return
+    fi
 
-        # Split by comma
-        mods=$(echo "$clean" | cut -d',' -f1 | sed 's/\$mainMod/Super/g' | xargs)
-        key=$(echo "$clean" | cut -d',' -f2 | xargs)
-        action=$(echo "$clean" | cut -d',' -f3 | xargs)
-        args=$(echo "$clean" | cut -d',' -f4- | xargs)
+    # modmask is an X modifier bitmask: Shift 1, Ctrl 4, Alt 8, Super 64.
+    # Listed in a fixed order so the same combination always reads the same way,
+    # whichever order it was written in.
+    keybinds=$(printf '%s' "$binds" | jq -r '
+        def bit($n): ((.modmask / $n) | floor) % 2 == 1;
+        .[]
+        | select((.key // "") != "")
+        | [ (if bit(64) then "Super" else empty end),
+            (if bit(4)  then "Ctrl"  else empty end),
+            (if bit(8)  then "Alt"   else empty end),
+            (if bit(1)  then "Shift" else empty end),
+            .key ] as $combo
+        | (if .has_description then .description
+           else ((.dispatcher // "") + " " + (.arg // "")) end) as $label
+        | "\($combo | join(" + "))\t\($label | gsub("^\\s+|\\s+$"; ""))"
+    ' 2>/dev/null | awk -F'\t' '{ printf "%-28s  \xe2\x86\x92  %s\n", $1, $2 }' | sort -u)
 
-        # Format modifiers nicely
-        if [ -n "$mods" ] && [ "$mods" != "" ]; then
-            combo="$mods + $key"
-        else
-            combo="$key"
-        fi
-
-        # Clean up action display
-        if [ "$action" = "exec" ]; then
-            # Show the command being executed (basename only)
-            cmd=$(basename "$(echo "$args" | awk '{print $1}')")
-            printf "%-28s  →  %s\n" "$combo" "$cmd"
-        else
-            printf "%-28s  →  %s %s\n" "$combo" "$action" "$args"
-        fi
-    done | sort -u)
+    if [ -z "$keybinds" ]; then
+        notify-send "Keybinds" "Hyprland reported no keybinds"
+        return
+    fi
 
     # Show in rofi (no search, just browse with cycling)
     echo "$keybinds" | rofi -dmenu -cycle \

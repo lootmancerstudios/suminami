@@ -31,10 +31,27 @@ case "$CHOICE" in
         hyprctl reload
         pkill waybar; sleep 0.3; waybar &
         systemctl --user restart dunst
+
+        # Report whether Hyprland is really running our config. A Hyprland too
+        # old for the Lua config writes itself a valid default and reports no
+        # errors, so a plain "Reloaded" would be misleading.
+        SUMMARY="Reloaded"
+        BODY="Hyprland, Waybar, Dunst, and styles refreshed"
+        # shellcheck source=../lib/hypr.sh
+        if source "$SCRIPTS_DIR/../lib/hypr.sh" 2>/dev/null; then
+            if ! hypr_version_ok; then
+                SUMMARY="Hyprland too old"
+                BODY="Hyprland $(hypr_version) cannot read a Lua config; $HYPR_MIN_VERSION or newer is needed"
+            elif ! hypr_config_loaded; then
+                SUMMARY="Config not loaded"
+                BODY="Hyprland is running its own defaults, not SumiNami's config"
+            fi
+        fi
+
         gdbus call --session --dest org.freedesktop.Notifications \
             --object-path /org/freedesktop/Notifications \
             --method org.freedesktop.Notifications.Notify \
-            "SumiNami" 0 "" "Reloaded" "Hyprland, Waybar, Dunst, and styles refreshed" "[]" "{}" 3000 >/dev/null 2>&1
+            "SumiNami" 0 "" "$SUMMARY" "$BODY" "[]" "{}" 3000 >/dev/null 2>&1
         ;;
     *"Help"*)
         "$SCRIPTS_DIR/help.sh"

@@ -1,0 +1,15 @@
+-- Machine-specific Hyprland config. Copy to local.lua, which is git-ignored and
+-- required last so anything set here wins.
+--
+-- Examples:
+--
+--   -- An extra keybind
+--   hl.bind("SUPER + SHIFT + T", hl.dsp.exec_cmd("kitty --class floatterm"))
+--
+--   -- Something to start with the session
+--   hl.on("hyprland.start", function()
+--       hl.exec_cmd("easyeffects --service-mode -w")
+--   end)
+--
+--   -- Override a look-and-feel value set in visuals.lua
+--   hl.config({ decoration = { rounding = 8 } })
