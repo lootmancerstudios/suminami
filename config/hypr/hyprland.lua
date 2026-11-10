@@ -40,12 +40,17 @@ local function require_optional(path)
     return true
 end
 
+-- Fallbacks for settings still held in pre-Lua .conf files. See compat.lua.
+local compat = require("./compat.lua")
+
 -- Monitor setup: committed safe default first, then the per-machine override.
 -- Copy monitors.lua.example to monitors.lua and edit it for your displays;
 -- monitors.lua is git-ignored so updates never clobber it. Loading the default
 -- first means a fresh clone still gets a working monitor before the override.
 require("./monitors-default.lua")
-require_optional(CONFIG_DIR .. "monitors.lua")
+if not require_optional(CONFIG_DIR .. "monitors.lua") then
+    compat.import_monitors(CONFIG_DIR .. "monitors.conf")
+end
 
 require("./env.lua")
 require("./input.lua")
@@ -56,7 +61,12 @@ require("./rules.lua")
 
 -- Hardware-specific drop-in, written by install.sh outside this repo so it
 -- survives updates instead of showing up as a local change to a tracked file.
-require_optional(HOME .. "/.config/hypr-local/nvidia.lua")
+if not require_optional(HOME .. "/.config/hypr-local/nvidia.lua") then
+    compat.import_nvidia(HOME .. "/.config/hypr-local/nvidia.conf")
+end
+
+-- Has to come before conf.d is required: it may write a drop-in there.
+compat.migrate_autostarts(CONFIG_DIR .. "env.conf", CONFIG_DIR .. "conf.d/10-autostart-extras.lua")
 
 -- Drop-ins (generated web-app rules, your own fragments), loaded in sorted
 -- order. The glob has to match at least one file or Hyprland reports a config
@@ -64,4 +74,6 @@ require_optional(HOME .. "/.config/hypr-local/nvidia.lua")
 require("./conf.d/*.lua")
 
 -- Machine-specific overrides, loaded last so they win.
-require_optional(CONFIG_DIR .. "local.lua")
+if not require_optional(CONFIG_DIR .. "local.lua") then
+    compat.warn_unported(CONFIG_DIR .. "local.conf")
+end

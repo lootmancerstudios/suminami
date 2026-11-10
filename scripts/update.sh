@@ -67,12 +67,6 @@ if [ "$autostashed" = true ]; then
         || echo -e "${YELLOW}[!]${NC} Some local changes conflicted with the update; they are kept in 'git stash'."
 fi
 
-# Hyprland configs from before the move to Lua. The tracked ones are removed by
-# the update itself; these are git-ignored, so they would otherwise sit there
-# looking like live config that Hyprland 0.57 no longer reads.
-rm -f config/hypr/monitors.conf config/hypr/local.conf \
-      config/hypr/conf.d/00-placeholder.conf config/hypr/conf.d/50-webapps.conf
-
 echo ""
 
 # Regenerate theme

@@ -389,7 +389,8 @@ hl.window_rule({{
 }})
 """
 
-BIND = '\nhl.bind("{key}", hl.dsp.exec_cmd("{ctl} {app} focus"))\n'
+BIND = ('\nhl.bind("{key}", hl.dsp.exec_cmd("{ctl} {app} focus"), '
+        '{{ desc = "Focus {name}" }})\n')
 
 
 def lua_string(value: str) -> str:
@@ -441,7 +442,8 @@ def install_window_rules() -> None:
         if app.key:
             ctl = Path(__file__).resolve().parent / "webapp-ctl"
             body += BIND.format(key=lua_string(lua_keybind(app.key)),
-                                ctl=lua_string(str(ctl)), app=app.app)
+                                ctl=lua_string(str(ctl)), app=app.app,
+                                name=lua_string(app.name))
 
     (rules_dir / "50-webapps.lua").write_text(body, encoding="utf-8")
 

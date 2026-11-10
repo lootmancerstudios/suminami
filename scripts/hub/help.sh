@@ -33,6 +33,7 @@ show_keybinds() {
             (if bit(1)  then "Shift" else empty end),
             .key ] as $combo
         | (if .has_description then .description
+           elif .dispatcher == "__lua" then "(no description)"
            else ((.dispatcher // "") + " " + (.arg // "")) end) as $label
         | "\($combo | join(" + "))\t\($label | gsub("^\\s+|\\s+$"; ""))"
     ' 2>/dev/null | awk -F'\t' '{ printf "%-28s  \xe2\x86\x92  %s\n", $1, $2 }' | sort -u)

@@ -82,6 +82,12 @@ rice. It is worth knowing that this failure is silent — `hyprctl configerrors`
 reports no errors, because the generated default is perfectly valid. The
 installer and the Hub's Reload both check the version and say so outright.
 
+**Updating an existing install** needs nothing from you beyond the usual Hub
+update, followed by logging out and back in. Your session keeps working in the
+meantime, and a notice tells you when to log out. Your `monitors.conf` is still
+honoured until you write a `monitors.lua`; anything you had in `local.conf` has
+to be moved to `local.lua` by hand, and you are reminded at login if so.
+
 Still on a `.conf` SumiNami from before this change, and not ready to move?
 [`v1.1.0`](https://github.com/lootmancerstudios/suminami/releases/tag/v1.1.0) is
 the last hyprlang release.

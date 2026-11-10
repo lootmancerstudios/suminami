@@ -503,10 +503,13 @@ create_symlinks() {
 
     # Create monitors.lua from example if it doesn't exist, as the obvious place
     # to describe your displays. hyprland.lua loads a committed auto-detect
-    # default first, so a missing monitors.lua is not an error either way.
+    # default first, so a missing monitors.lua is not an error either way. An
+    # existing monitors.conf from an older install is left in charge: it is
+    # still honoured (see compat.lua) until a monitors.lua replaces it.
     local monitors_conf="$suminami_dir/config/hypr/monitors.lua"
     local monitors_example="$suminami_dir/config/hypr/monitors.lua.example"
-    if [ ! -f "$monitors_conf" ] && [ -f "$monitors_example" ]; then
+    if [ ! -f "$monitors_conf" ] && [ -f "$monitors_example" ] \
+        && [ ! -f "$suminami_dir/config/hypr/monitors.conf" ]; then
         cp "$monitors_example" "$monitors_conf"
         print_success "  Created monitors.lua from example"
     fi
@@ -514,17 +517,6 @@ create_symlinks() {
     # local.lua is left to the user: hyprland.lua requires it only when present,
     # so an empty one would be clutter rather than a requirement. See
     # local.lua.example for what can go in it.
-
-    # Configs from before the move to Lua. Hyprland 0.57 does not read them, and
-    # leaving them in place makes it look as though the rice is still installed.
-    local stale
-    for stale in hyprland env input visuals layout keybinds rules; do
-        rm -f "$suminami_dir/config/hypr/$stale.conf"
-    done
-    rm -f "$suminami_dir/config/hypr/conf.d/00-placeholder.conf" \
-          "$suminami_dir/config/hypr/conf.d/50-webapps.conf" \
-          "$suminami_dir/config/hypr/monitors.conf" \
-          "$suminami_dir/config/hypr/local.conf"
 }
 
 # Hyprland has to be new enough to read a Lua config. Checked after packages are

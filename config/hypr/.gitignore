@@ -8,5 +8,7 @@ local.lua
 conf.d/*
 !conf.d/00-placeholder.lua
 
-# Written by Hyprland itself when it finds no config of ours. Never ours.
-hyprland.lua.bak
+# Per-machine files from before the config moved to Lua. Still honoured as a
+# fallback (see compat.lua), and still not ours to track.
+monitors.conf
+local.conf

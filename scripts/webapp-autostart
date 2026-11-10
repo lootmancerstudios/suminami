@@ -34,6 +34,18 @@ if ! python3 -c 'import gi' >/dev/null 2>&1; then
     exit 0
 fi
 
+# Window rules generated before the config moved to Lua sit in a .conf drop-in
+# that Hyprland no longer reads. Without them a web app opens on screen at login
+# instead of in its stash, so regenerate them once, before any agent starts.
+RULES_DIR="$SCRIPT_DIR/../config/hypr/conf.d"
+if [ -f "$RULES_DIR/50-webapps.conf" ] && [ ! -f "$RULES_DIR/50-webapps.lua" ]; then
+    if "$SCRIPT_DIR/webapp-install" --installed >>"$LOG" 2>&1; then
+        note "regenerated web-app window rules for the Lua config"
+    else
+        note "could not regenerate web-app window rules; run webapp-install --installed"
+    fi
+fi
+
 started=0
 while IFS= read -r app; do
     [ -n "$app" ] || continue
