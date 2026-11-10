@@ -45,6 +45,9 @@ case "$CHOICE" in
             elif ! hypr_config_loaded; then
                 SUMMARY="Config not loaded"
                 BODY="Hyprland is running its own defaults, not SumiNami's config"
+            elif ! waybar_version_ok; then
+                SUMMARY="Waybar too old"
+                BODY="Waybar $(waybar_version) cannot switch workspaces by click; update your system for $WAYBAR_MIN_VERSION or newer"
             fi
         fi
 

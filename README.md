@@ -70,6 +70,7 @@ cd ~/.config/suminami && git fetch origin && git reset --hard origin/main
 |---|---|
 | Distro | Arch or an Arch derivative (`pacman`) |
 | Hyprland | **0.55 or newer** |
+| Waybar | **0.16 or newer** |
 
 Hyprland's config is Lua from 0.55 onwards, and 0.57 removed the older hyprlang
 (`.conf`) format altogether. SumiNami's Hyprland config is Lua, which 0.55 and
@@ -81,6 +82,11 @@ none of ours, and writes itself a default: a stock desktop with none of the
 rice. It is worth knowing that this failure is silent — `hyprctl configerrors`
 reports no errors, because the generated default is perfectly valid. The
 installer and the Hub's Reload both check the version and say so outright.
+
+Waybar has to be 0.16 or newer for the same reason: its workspace buttons send
+Hyprland a dispatch directly, and before 0.16 they send one a Lua config
+rejects, so clicking a workspace does nothing. A normal system update
+(`sudo pacman -Syu`) brings both. You are told at login if yours is too old.
 
 **Updating an existing install** needs nothing from you beyond the usual Hub
 update, followed by logging out and back in. Your session keeps working in the

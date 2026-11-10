@@ -36,6 +36,10 @@ hl.on("hyprland.start", function()
     -- never installed are skipped, so this is a no-op for users who want none.
     hl.exec_cmd("~/.config/suminami/scripts/webapp-autostart")
 
+    -- Reports a setup the rice cannot work properly on, such as a Waybar too old
+    -- to drive this config. Silent when everything is in order.
+    hl.exec_cmd("~/.config/suminami/scripts/session-check")
+
     -- Optional extras that install.sh offers -- hypridle, clipboard persistence
     -- -- are written to conf.d/10-autostart-extras.lua instead of here, so this
     -- tracked file is never edited and never has to be stashed on an update.

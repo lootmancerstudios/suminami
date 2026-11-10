@@ -1,0 +1,18 @@
+#!/bin/bash
+# Run once at login to report a setup the rice cannot work properly on.
+#
+# These are problems that otherwise show up as something quietly not working,
+# with nothing on screen to connect it to a cause. Uses Hyprland's own
+# notification so it does not depend on the notification daemon being up yet.
+
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+# shellcheck source=lib/hypr.sh
+source "$SCRIPT_DIR/lib/hypr.sh" 2>/dev/null || exit 0
+
+warn() { hyprctl notify 0 30000 "rgb(ff9e3b)" "fontsize:13 SumiNami: $1" >/dev/null 2>&1; }
+
+if ! waybar_version_ok; then
+    warn "Waybar $(waybar_version) cannot switch workspaces by click with this Hyprland config. Update your system (sudo pacman -Syu) for Waybar $WAYBAR_MIN_VERSION or newer."
+fi
+
+exit 0

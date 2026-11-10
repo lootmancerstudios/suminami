@@ -47,3 +47,23 @@ hypr_config_loaded() {
     hyprctl getoption misc:disable_hyprland_logo -j 2>/dev/null \
         | grep -q '"set"[[:space:]]*:[[:space:]]*true'
 }
+
+# Waybar's workspace buttons do not run a script of ours: Waybar itself sends
+# Hyprland the dispatch. Before 0.16 it sends the pre-Lua dispatcher names,
+# which a Hyprland running a Lua config rejects, so clicking a workspace does
+# nothing. Nothing in the bar's config can change what Waybar sends.
+WAYBAR_MIN_VERSION="0.16.0"
+
+waybar_version() {
+    local v
+    v="$(waybar --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+    [ -z "$v" ] && v="$(pacman -Q waybar 2>/dev/null | awk '{print $2}' | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')"
+    printf '%s\n' "$v"
+}
+
+waybar_version_ok() {
+    local v
+    v="$(waybar_version)"
+    [ -z "$v" ] && return 0
+    hypr_version_ge "$v" "$WAYBAR_MIN_VERSION"
+}

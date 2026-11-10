@@ -107,6 +107,12 @@ if source "$SUMINAMI_DIR/scripts/lib/hypr.sh" 2>/dev/null; then
         echo -e "    then log out and back in. 'hyprctl configerrors' will look clean"
         echo -e "    either way, because Hyprland falls back to a valid default."
     fi
+    if ! waybar_version_ok; then
+        echo -e "${YELLOW}[!]${NC} Waybar $(waybar_version) is older than $WAYBAR_MIN_VERSION."
+        echo -e "    Clicking a workspace on the bar will do nothing until it is updated:"
+        echo -e "    older Waybar sends Hyprland a dispatch the Lua config rejects."
+        echo -e "    Update your system with: sudo pacman -Syu"
+    fi
 fi
 
 # Reload Waybar
